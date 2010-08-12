@@ -4,6 +4,7 @@
 from collections import namedtuple
 
 import urwid
+from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
 
@@ -208,8 +209,8 @@ class PlayingFieldWidget(urwid.BoxWidget):
         elif key == 'right':
             self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=0, dcol=+1))
             self._invalidate()
-        elif len(key) == 1:
-            self.letter = key
+        elif key == 'q':
+            raise ExitMainLoop
         else:
             return key
 
@@ -217,7 +218,12 @@ class PlayingFieldWidget(urwid.BoxWidget):
         return True
 
 
+# Setup
 play_area = PlayingFieldWidget(DungeonLevel())
 loop = urwid.MainLoop(play_area)
 
+# Game loop
 loop.run()
+
+# End
+print "Bye!"
