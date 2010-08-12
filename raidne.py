@@ -7,18 +7,52 @@ import urwid
 from urwid.util import apply_target_encoding
 
 
-Size = namedtuple('Size', ['rows', 'cols'])
-Position = namedtuple('Position', ['row', 'col'])
-Offset = namedtuple('Offset', ['drow', 'dcol'])
+### UTILITIES
+class Size(namedtuple('Size', ['rows', 'cols'])):
+    """The size of a dungeon floor or other rectangular area."""
+    __slots__ = ()
 
-class Architecture(object):
-    """Represents some part of the dungeon: a floor, a trap, etc.  Every point
-    on a dungeon floor has some kind of architecture.
+    def __contains__(self, position):
+        """Checks whether the given `position` falls within the boundaries of
+        this rectangle.
+        """
+        return (
+            position.row >= 0 and
+            position.col >= 0 and
+            position.row <= self.rows and
+            position.row <= self.cols
+        )
+
+class Position(namedtuple('Position', ['row', 'col'])):
+    """Coordinate of a dungeon floor."""
+    __slots__ = ()
+
+    def plus_offset(self, offset):
+        """Returns a new Position shifted by the given Offset."""
+        return type(self)(
+            self.row + offset.drow,
+            self.col + offset.dcol)
+
+class Offset(namedtuple('Offset', ['drow', 'dcol'])):
+    """Distance traveled from a Position."""
+    __slots__ = ()
+
+
+
+class Thing(object):
+    """Any discrete object that can appear within the dungeon.  Includes walls,
+    floors, the player, traps, items, etc.
     """
+
     def rendering(self):
         # XXX temporary
         pass
 
+### ARCHITECTURE
+class Architecture(Thing):
+    """Some part of the dungeon layout: a floor, a trap, etc.  Every point on a
+    dungeon floor has some kind of architecture.
+    """
     def move_onto(self, dlvl, thing):
         """`thing` is trying to move onto this square!
 
@@ -42,9 +76,6 @@ class Wall(Architecture):
     def move_onto(self, dlvl, thing):
         return False
 
-
-class Thing(object):
-    pass
 
 class Creature(Thing):
     pass
@@ -81,17 +112,32 @@ class DungeonLevel(object):
         self.player.position = Position(1, 1)
         self.things.append(self.player)
 
-    def move(self, thing, offset):
-        """Attempts to move the given thing by the given offset."""
-        target = Position(
-            thing.position.row + offset.drow,
-            thing.position.col + offset.dcol)
+    def architecture_at(self, position):
+        """Returns the Architecture object at the given position."""
+        return self.architecture[position.row][position.col]
 
-        if target.row < 0 or target.col < 0 or \
-            target.row > self.size.rows or target.col > self.size.cols:
+    def move_thing(self, thing, target):
+        """Call to move a thing to a new target position.  `target` may be
+        either a Position or an Offset.
+
+        This method makes no attempt to validate whether the thing has the
+        ability to move this far, or indeed at all -- it's only concerned with
+        the arrival of the thing on the new square.  For example, traps will
+        activate, and the move will be canceled if there's a wall or monster at
+        the target position.
+
+        Returns True if the thing actually moved; False otherwise.
+        """
+        # XXX return something more useful?
+
+        # If an offset is given, apply it to the thing's current position
+        if isinstance(target, Offset):
+            target = thing.position.plus_offset(target)
+
+        if target not in self.size:
             return False
 
-        if self.architecture[target.row][target.col].move_onto(self, thing):
+        if self.architecture_at(target).move_onto(self, thing):
             thing.position = target
             return True
 
@@ -99,6 +145,7 @@ class DungeonLevel(object):
 
 
 class Dungeon(object):
+    # TODO
     pass
 
 
@@ -150,16 +197,16 @@ class PlayingFieldWidget(urwid.BoxWidget):
 
     def keypress(self, size, key):
         if key == 'up':
-            self.dungeon_level.move(self.dungeon_level.player, Offset(drow=-1, dcol=0))
+            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=-1, dcol=0))
             self._invalidate()
         elif key == 'down':
-            self.dungeon_level.move(self.dungeon_level.player, Offset(drow=+1, dcol=0))
+            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=+1, dcol=0))
             self._invalidate()
         elif key == 'left':
-            self.dungeon_level.move(self.dungeon_level.player, Offset(drow=0, dcol=-1))
+            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=0, dcol=-1))
             self._invalidate()
         elif key == 'right':
-            self.dungeon_level.move(self.dungeon_level.player, Offset(drow=0, dcol=+1))
+            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=0, dcol=+1))
             self._invalidate()
         elif len(key) == 1:
             self.letter = key
