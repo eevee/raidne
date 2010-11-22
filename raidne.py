@@ -150,27 +150,23 @@ class Dungeon(object):
     pass
 
 
-class PlayingFieldWidget(urwid.BoxWidget):
+class PlayingFieldWidget(urwid.FixedWidget):
     _selectable = True
 
     def __init__(self, dungeon_level):
         self.dungeon_level = dungeon_level
 
+    def pack(self, size, focus=False):
+        # Returns the size of the fixed playing field.
+        return self.dungeon_level.size
+
     def render(self, size, focus=False):
-        (maxcol, maxrow) = size
-        self.last_size = size
 
         # Build a view of the architecture
         viewport = []
         for (row, arch_row) in enumerate(self.dungeon_level.architecture):
-            if row >= maxrow:
-                break
-
             viewport_chars = []
             for (col, arch) in enumerate(arch_row):
-                if col >= maxcol:
-                    break
-
                 rendering = arch.rendering()
 
                 # Check things.  XXX make this a separate widget and less kludgy.
@@ -179,22 +175,11 @@ class PlayingFieldWidget(urwid.BoxWidget):
 
                 viewport_chars.append(rendering)
 
-            viewport_line = u''.join(viewport_chars)
-            viewport.append(viewport_line)
+            encoded_line, charset = apply_target_encoding(u''.join(viewport_chars))
+            viewport.append(encoded_line)
 
-        # Pad the thing
-        # XXX shouldn't be necessary...  overlay this on a blank filler widget
-        for row in range(maxrow):
-            if row >= len(viewport):
-                viewport.append(u'')
-
-            new_line = viewport[row] + u' ' * (maxcol - len(viewport[row]))
-
-            # Handle encoding
-            encoded_line, charset = apply_target_encoding(new_line)
-            viewport[row] = encoded_line
-
-        return urwid.TextCanvas(viewport)
+        # Needs to be wrapped in CompositeCanvas for overlaying to work
+        return urwid.CompositeCanvas(urwid.TextCanvas(viewport))
 
     def keypress(self, size, key):
         if key == 'up':
@@ -219,7 +204,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
 
 
 # Setup
-play_area = PlayingFieldWidget(DungeonLevel())
+play_area = urwid.Overlay(PlayingFieldWidget(DungeonLevel()), urwid.SolidFill(' '), align='left', width=None, valign='top', height=None)
 loop = urwid.MainLoop(play_area)
 
 # Game loop
