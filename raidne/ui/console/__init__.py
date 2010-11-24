@@ -6,6 +6,7 @@ from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
 from raidne.game.dungeon import DungeonLevel
+from raidne.ui.console.rendering import rendering_for
 from raidne.util import Offset
 
 class PlayingFieldWidget(urwid.FixedWidget):
@@ -24,11 +25,11 @@ class PlayingFieldWidget(urwid.FixedWidget):
         for (row, arch_row) in enumerate(self.dungeon_level.architecture):
             viewport_chars = []
             for (col, arch) in enumerate(arch_row):
-                rendering = arch.rendering()
+                rendering = rendering_for(arch)
 
                 # Check things.  XXX make this a separate widget and less kludgy.
                 if (row, col) == self.dungeon_level.player.position:
-                    rendering = self.dungeon_level.player.rendering()
+                    rendering = rendering_for(self.dungeon_level.player)
 
                 viewport_chars.append(rendering)
 

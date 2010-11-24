@@ -10,10 +10,7 @@ class Thing(object):
     """Any discrete object that can appear within the dungeon.  Includes walls,
     floors, the player, traps, items, etc.
     """
-
-    def rendering(self):
-        # XXX temporary
-        pass
+    pass
 
 
 ### ARCHITECTURE
@@ -30,17 +27,11 @@ class Architecture(Thing):
 
 class Floor(Architecture):
     """Empty generic cave floor."""
-    def rendering(self):
-        return u'·'
-
     def move_onto(self, dlvl, thing):
         return True
 
 class Wall(Architecture):
     """Generic cave wall."""
-    def rendering(self):
-        return u'▓'
-
     def move_onto(self, dlvl, thing):
         return False
 
@@ -50,5 +41,4 @@ class Creature(Thing):
     pass
 
 class Player(Creature):
-    def rendering(self):
-        return u'☺'
+    pass
