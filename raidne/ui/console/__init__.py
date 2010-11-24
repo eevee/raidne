@@ -6,7 +6,7 @@ from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
 from raidne.game.dungeon import DungeonLevel
-from raidne.ui.console.rendering import rendering_for
+from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
 from raidne.util import Offset
 
 class PlayingFieldWidget(urwid.FixedWidget):
@@ -22,22 +22,29 @@ class PlayingFieldWidget(urwid.FixedWidget):
     def render(self, size, focus=False):
         # Build a view of the architecture
         viewport = []
+        attrs = []
         for (row, arch_row) in enumerate(self.dungeon_level.architecture):
             viewport_chars = []
+            attr_row = []
             for (col, arch) in enumerate(arch_row):
-                rendering = rendering_for(arch)
+                topmost_thing = arch
 
                 # Check things.  XXX make this a separate widget and less kludgy.
                 if (row, col) == self.dungeon_level.player.position:
-                    rendering = rendering_for(self.dungeon_level.player)
+                    topmost_thing = self.dungeon_level.player
 
-                viewport_chars.append(rendering)
+                char, palette = rendering_for(topmost_thing)
+                # XXX this is getting way inefficient man; surely a better approach
+                # TODO pass the rle to TextCanvas
+                encoded_char, rle = apply_target_encoding(char)
+                viewport_chars.append(encoded_char)
+                attr_row.append((palette, len(encoded_char)))
 
-            encoded_line, charset = apply_target_encoding(u''.join(viewport_chars))
-            viewport.append(encoded_line)
+            viewport.append(''.join(viewport_chars))
+            attrs.append(attr_row)
 
         # Needs to be wrapped in CompositeCanvas for overlaying to work
-        return urwid.CompositeCanvas(urwid.TextCanvas(viewport))
+        return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
 
     def keypress(self, size, key):
         if key == 'up':
@@ -65,6 +72,10 @@ def main():
     # Setup
     play_area = urwid.Overlay(PlayingFieldWidget(DungeonLevel()), urwid.SolidFill(' '), align='left', width=None, valign='top', height=None)
     loop = urwid.MainLoop(play_area)
+
+    # XXX what happens if the terminal doesn't actually support 256 colors?
+    loop.screen.set_terminal_properties(colors=256)
+    loop.screen.register_palette(PALETTE_ENTRIES)
 
     # Game loop
     loop.run()
