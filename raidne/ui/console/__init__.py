@@ -23,17 +23,13 @@ class PlayingFieldWidget(urwid.FixedWidget):
         # Build a view of the architecture
         viewport = []
         attrs = []
-        for (row, arch_row) in enumerate(self.dungeon_level.architecture):
+        for row in range(self.dungeon_level.size.rows):
             viewport_chars = []
             attr_row = []
-            for (col, arch) in enumerate(arch_row):
-                topmost_thing = arch
+            for col in range(self.dungeon_level.size.cols):
+                tile = self.dungeon_level[row, col]
+                char, palette = rendering_for(tile.topmost_thing)
 
-                # Check things.  XXX make this a separate widget and less kludgy.
-                if (row, col) == self.dungeon_level.player.position:
-                    topmost_thing = self.dungeon_level.player
-
-                char, palette = rendering_for(topmost_thing)
                 # XXX this is getting way inefficient man; surely a better approach
                 # TODO pass the rle to TextCanvas
                 encoded_char, rle = apply_target_encoding(char)
