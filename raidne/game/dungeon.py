@@ -58,7 +58,6 @@ class DungeonLevel(object):
     """
     def __init__(self):
         self.size = Size(10, 10)
-        self.things = []
         self.tiles = [
             [DungeonTile(Wall()) for col in xrange(self.size.cols)]
             for row in xrange(self.size.rows)
@@ -74,9 +73,9 @@ class DungeonLevel(object):
 
         # Insert player at starting point
         self.player = Player()
-        self.player.position = Position(1, 1)
-        self[self.player.position].creature = self.player
-        self.thing_positions[self.player] = self.player.position
+        player_pos = Position(1, 1)
+        self[player_pos].add(self.player)
+        self.thing_positions[self.player] = player_pos
 
     # n.b.: There's deliberately no __setitem__, as the tile at any given
     # position has no reason to ever be overwritten.
@@ -97,7 +96,7 @@ class DungeonLevel(object):
         """Returns the position of the given Thing, which must exist on this
         dungeon level.
         """
-        return thing.position
+        return self.thing_positions[thing]
 
 
     def move_thing(self, thing, target):
@@ -114,14 +113,18 @@ class DungeonLevel(object):
         """
         # XXX return something more useful?
 
+        old_position = self.position_of(thing)
+
         # If an offset is given, apply it to the thing's current position
         if isinstance(target, Offset):
-            target = thing.position.plus_offset(target)
+            new_position = old_position.plus_offset(target)
+        else:
+            new_position = target
 
-        if self[target].architecture.move_onto(self, thing):
-            self[thing.position].remove(thing)
-            self[target].add(thing)
-            thing.position = target
+        if self[new_position].architecture.move_onto(self, thing):
+            self[old_position].remove(thing)
+            self[new_position].add(thing)
+            self.thing_positions[thing] = new_position
             return True
 
         return False
