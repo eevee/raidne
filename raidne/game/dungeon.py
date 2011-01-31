@@ -7,6 +7,7 @@ multiple DungeonLevels, and is responsible for generating, saving, and loading
 them as the player progresses.
 """
 
+from raidne import exceptions
 from raidne.game import things
 from raidne.game.things import Wall, Floor, Player
 from raidne.util import Offset, Position, Size
@@ -25,6 +26,22 @@ class DungeonTile(object):
         self.items = items
         self.creature = creature
 
+    def __iter__(self):
+        """Iteration support; yields every Thing on this tile, in z-order from
+        top to bottom.
+        """
+        if self.creature:
+            yield self.creature
+        for item in self.items:
+            yield item
+        if self.architecture:
+            yield self.architecture
+
+    @property
+    def topmost_thing(self):
+        """Returns the topmost Thing positioned on this tile."""
+        return next(iter(self))
+
     def add(self, thing):
         if isinstance(thing, things.Creature):
             if self.creature:
@@ -40,16 +57,6 @@ class DungeonTile(object):
         else:
             # Throws KeyError if thing isn't here
             self.items.remove(thing)
-
-    @property
-    def topmost_thing(self):
-        """Returns the topmost Thing positioned on this tile."""
-        if self.creature:
-            return self.creature
-        elif self.items:
-            return self.items[-1]
-        else:
-            return self.architecture
 
 
 class DungeonLevel(object):
@@ -99,7 +106,7 @@ class DungeonLevel(object):
         return self.thing_positions[thing]
 
 
-    def move_thing(self, thing, target):
+    def move_thing(self, actor, target):
         """Call to move a thing to a new target position.  `target` may be
         either a Position or an Offset.
 
@@ -109,11 +116,11 @@ class DungeonLevel(object):
         activate, and the move will be canceled if there's a wall or monster at
         the target position.
 
-        Returns True if the thing actually moved; False otherwise.
+        Returns the new position's tile, or None if the movement is impossible.
         """
         # XXX return something more useful?
 
-        old_position = self.position_of(thing)
+        old_position = self.position_of(actor)
 
         # If an offset is given, apply it to the thing's current position
         if isinstance(target, Offset):
@@ -121,13 +128,22 @@ class DungeonLevel(object):
         else:
             new_position = target
 
-        if self[new_position].architecture.move_onto(self, thing):
-            self[old_position].remove(thing)
-            self[new_position].add(thing)
-            self.thing_positions[thing] = new_position
-            return True
+        # Check whether the target tile will accept the new thing
+        for thing in self[new_position]:
+            if not thing.can_be_moved_onto(actor):
+                # XXX should this be an exception?
+                return
 
-        return False
+        # Perform the move
+        self[old_position].remove(actor)
+        self[new_position].add(actor)
+        self.thing_positions[actor] = new_position
+
+        # Let the new tile react
+        for thing in self[new_position]:
+            thing.trigger_moved_onto(actor)
+
+        return self[new_position]
 
 
 class Dungeon(object):

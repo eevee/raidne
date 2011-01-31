@@ -10,7 +10,27 @@ class Thing(object):
     """Any discrete object that can appear within the dungeon.  Includes walls,
     floors, the player, traps, items, etc.
     """
-    pass
+
+    ### Capability introspection
+
+    def can_be_moved_onto(self, actor):
+        """Returns a bool, declaring whether the `actor` can move onto this
+        thing.
+        """
+        raise NotImplementedError
+
+
+    ### Triggers; like little event hooks
+
+    def trigger_moved_onto(self, actor):
+        """Hook to do something-or-other when an `actor` moves onto this thing.
+
+        No useful return value.
+
+        May raise a CollisionError if this isn't allowed, though callers should
+        check the above method first.
+        """
+        pass
 
 
 ### ARCHITECTURE
@@ -18,27 +38,22 @@ class Architecture(Thing):
     """Some part of the dungeon layout: a floor, a trap, etc.  Every point on a
     dungeon floor has some kind of architecture.
     """
-    def move_onto(self, dlvl, thing):
-        """`thing` is trying to move onto this square!
-
-        Return True if this is okay, False otherwise.
-        """
-        raise NotImplementedError
 
 class Floor(Architecture):
     """Empty generic cave floor."""
-    def move_onto(self, dlvl, thing):
+    def can_be_moved_onto(self, actor):
         return True
 
 class Wall(Architecture):
     """Generic cave wall."""
-    def move_onto(self, dlvl, thing):
+    def can_be_moved_onto(self, actor):
         return False
 
 
 ### CREATURES
 class Creature(Thing):
-    pass
+    def can_be_moved_onto(self, actor):
+        return False
 
 class Player(Creature):
     pass
