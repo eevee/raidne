@@ -14,7 +14,19 @@ from raidne.game import things
 PALETTE_ENTRIES = [
     # (name, other)
     # (name, fg, bg, mono, fg_high, bg_high)
+
+    # UI
+    ('message-old', 'dark gray', 'default', None, '#666', 'default'),
+    ('message-fresh', 'white', 'default', None, '#fff', 'default'),
+
+    # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
+
+    # Creatures
+    ('player', 'yellow', 'default', None, '#ff6', 'default'),
+
+    # Items
+    ('potion', 'light magenta', 'default', None, '#f6f', 'default'),
 ]
 
 
@@ -40,4 +52,11 @@ def rendering_for(obj):
 
 @strict_multimethod(things.Player)
 def rendering_for(obj):
-    return u'☻', 'default'
+    return u'☻', 'player'
+
+
+### Items
+
+@strict_multimethod(things.Potion)
+def rendering_for(obj):
+    return u'ᵭ', 'potion'

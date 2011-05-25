@@ -57,3 +57,12 @@ class Creature(Thing):
 
 class Player(Creature):
     pass
+
+
+### ITEMS
+class Item(Thing):
+    def can_be_moved_onto(self, actor):
+        return True
+
+class Potion(Item):
+    pass

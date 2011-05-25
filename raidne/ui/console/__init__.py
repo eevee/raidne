@@ -12,8 +12,9 @@ from raidne.util import Offset
 class PlayingFieldWidget(urwid.FixedWidget):
     _selectable = True
 
-    def __init__(self, dungeon_level):
+    def __init__(self, dungeon_level, interface_proxy):
         self.dungeon_level = dungeon_level
+        self.interface_proxy = interface_proxy
 
     def pack(self, size, focus=False):
         # Returns the size of the fixed playing field.
@@ -43,25 +44,39 @@ class PlayingFieldWidget(urwid.FixedWidget):
         return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
 
     def keypress(self, size, key):
-        if key == 'up':
-            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=-1, dcol=0))
-            self._invalidate()
-        elif key == 'down':
-            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=+1, dcol=0))
-            self._invalidate()
-        elif key == 'left':
-            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=0, dcol=-1))
-            self._invalidate()
-        elif key == 'right':
-            self.dungeon_level.move_thing(self.dungeon_level.player, Offset(drow=0, dcol=+1))
-            self._invalidate()
-        elif key == 'q':
+        if key == 'q':
             raise ExitMainLoop
+
+        if key == 'up':
+            self.dungeon_level.act_move_up(self.interface_proxy)
+        elif key == 'down':
+            self.dungeon_level.act_move_down(self.interface_proxy)
+        elif key == 'left':
+            self.dungeon_level.act_move_left(self.interface_proxy)
+        elif key == 'right':
+            self.dungeon_level.act_move_right(self.interface_proxy)
         else:
             return key
 
+        # TODO: _invalidate() should probably be decided by the dungeon level.
+        # could use some more finely-tuned form of repainting
+        self._invalidate()
+
     def mouse_event(self, *args, **kwargs):
         return True
+
+
+class ConsoleProxy(object):
+    """This is the `ui` object passed to a lot of DungeonLevel methods.  It
+    allows game logic to trigger particular behaviors in the UI, while letting
+    the UI decide how to actually implement them.
+    """
+
+    def __init__(self, interface):
+        self.interface = interface
+
+    def message(self, message):
+        self.interface.push_message(message)
 
 
 class RaidneInterface(object):
@@ -75,7 +90,10 @@ class RaidneInterface(object):
         # | messages area       |
         # +---------------------+
 
-        playing_field = PlayingFieldWidget(DungeonLevel())
+        self.proxy = ConsoleProxy(self)
+
+        # FIXME this is a circular reference.  can urwid objects find their own containers?
+        playing_field = PlayingFieldWidget(DungeonLevel(), self.proxy)
         play_area = urwid.Overlay(
             playing_field, urwid.SolidFill(' '),
             align='left', width=None,
@@ -84,11 +102,9 @@ class RaidneInterface(object):
 
         player_status = urwid.Text("Player status is heeeere.")
 
-        messages_walker = urwid.SimpleListWalker([
-            urwid.Text('old message'),
-            urwid.Text('new message'),
-        ])
-        messages = urwid.ListBox(messages_walker)
+        self.message_pane = urwid.ListBox(
+            urwid.SimpleListWalker([])
+        )
 
         #play_area = urwid.SolidFill(' ')
         player_status = urwid.SolidFill('x')
@@ -96,11 +112,12 @@ class RaidneInterface(object):
             [play_area, ('fixed', 40, player_status)],
         )
         main = urwid.Pile(
-            [top, ('fixed', 10, messages)],
+            [top, ('fixed', 10, self.message_pane)],
         )
 
 
 
+        # TODO I'm not sure the main loop should be inside a thing that calls itself?
         loop = urwid.MainLoop(main)
 
         # XXX what happens if the terminal doesn't actually support 256 colors?
@@ -108,10 +125,22 @@ class RaidneInterface(object):
         loop.screen.register_palette(PALETTE_ENTRIES)
 
         # Game loop
+        self.push_message('Welcome to raidne!')
         loop.run()
 
         # End
         print "Bye!"
+
+    def push_message(self, message):
+        walker = self.message_pane.body
+        if walker:
+            last_message = walker[-1]
+            last_message.set_text(
+                ('message-old', last_message.text))
+
+        walker.append(
+            urwid.Text(('message-fresh', message)))
+        self.message_pane.set_focus(len(walker) - 1)
 
 def main():
     RaidneInterface().init_display()

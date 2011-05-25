@@ -21,9 +21,9 @@ class DungeonTile(object):
     __slots__ = ('architecture', 'items', 'creature')
 
     # TODO make a void object to use as the default architecture
-    def __init__(self, architecture, items=[], creature=None):
+    def __init__(self, architecture, items=None, creature=None):
         self.architecture = architecture
-        self.items = items
+        self.items = items or []
         self.creature = creature
 
     def __iter__(self):
@@ -77,6 +77,11 @@ class DungeonLevel(object):
                 if row == col == 4:
                     continue
                 self.tiles[row][col].architecture = Floor()
+
+        pot = things.Potion()
+        pot_pos = Position(2, 4)
+        self[pot_pos].add(pot)
+        self.thing_positions[pot] = pot_pos
 
         # Insert player at starting point
         self.player = Player()
@@ -144,6 +149,25 @@ class DungeonLevel(object):
             thing.trigger_moved_onto(actor)
 
         return self[new_position]
+
+
+    ### Player commands.  Each of these methods represents an action the player
+    ### has deliberately taken
+    # XXX: is passing the entire toplevel interface down here such a good idea?
+    def _act_move_delta(self, ui, offset):
+        new_tile = self.move_thing(self.player, offset)
+        if new_tile and new_tile.items:
+            ui.message("There are items here.")
+
+    def act_move_up(self, ui):
+        self._act_move_delta(ui, Offset(drow=-1, dcol=0))
+    def act_move_down(self, ui):
+        self._act_move_delta(ui, Offset(drow=+1, dcol=0))
+    def act_move_left(self, ui):
+        self._act_move_delta(ui, Offset(drow=0, dcol=-1))
+    def act_move_right(self, ui):
+        self._act_move_delta(ui, Offset(drow=0, dcol=+1))
+
 
 
 class Dungeon(object):
