@@ -64,17 +64,54 @@ class PlayingFieldWidget(urwid.FixedWidget):
         return True
 
 
+class RaidneInterface(object):
+
+    def init_display(self):
+        # +-------------+-------+
+        # |             | stats |
+        # |     map     | inv.  |
+        # |             |       |
+        # +-------------+-------+
+        # | messages area       |
+        # +---------------------+
+
+        playing_field = PlayingFieldWidget(DungeonLevel())
+        play_area = urwid.Overlay(
+            playing_field, urwid.SolidFill(' '),
+            align='left', width=None,
+            valign='top', height=None,
+        )
+
+        player_status = urwid.Text("Player status is heeeere.")
+
+        messages_walker = urwid.SimpleListWalker([
+            urwid.Text('old message'),
+            urwid.Text('new message'),
+        ])
+        messages = urwid.ListBox(messages_walker)
+
+        #play_area = urwid.SolidFill(' ')
+        player_status = urwid.SolidFill('x')
+        top = urwid.Columns(
+            [play_area, ('fixed', 40, player_status)],
+        )
+        main = urwid.Pile(
+            [top, ('fixed', 10, messages)],
+        )
+
+
+
+        loop = urwid.MainLoop(main)
+
+        # XXX what happens if the terminal doesn't actually support 256 colors?
+        loop.screen.set_terminal_properties(colors=256)
+        loop.screen.register_palette(PALETTE_ENTRIES)
+
+        # Game loop
+        loop.run()
+
+        # End
+        print "Bye!"
+
 def main():
-    # Setup
-    play_area = urwid.Overlay(PlayingFieldWidget(DungeonLevel()), urwid.SolidFill(' '), align='left', width=None, valign='top', height=None)
-    loop = urwid.MainLoop(play_area)
-
-    # XXX what happens if the terminal doesn't actually support 256 colors?
-    loop.screen.set_terminal_properties(colors=256)
-    loop.screen.register_palette(PALETTE_ENTRIES)
-
-    # Game loop
-    loop.run()
-
-    # End
-    print "Bye!"
+    RaidneInterface().init_display()
