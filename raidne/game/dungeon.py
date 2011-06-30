@@ -9,7 +9,7 @@ them as the player progresses.
 
 from raidne import exceptions
 from raidne.game import things
-from raidne.game.things import Wall, Floor, Player
+from raidne.game.things import Wall, Floor, StaircaseDown, Player
 from raidne.util import Offset, Position, Size
 
 class DungeonTile(object):
@@ -59,9 +59,9 @@ class DungeonTile(object):
             self.items.remove(thing)
 
 
-class DungeonLevel(object):
-    """Represents a single level in the dungeon.  Logic for most object
-    interaction is here.
+class DungeonFloor(object):
+    """A single floor in the dungeon.  This is where most of the interaction
+    within the game world occurs.
     """
     def __init__(self):
         self.size = Size(10, 10)
@@ -78,16 +78,12 @@ class DungeonLevel(object):
                     continue
                 self.tiles[row][col].architecture = Floor()
 
-        pot = things.Potion()
-        pot_pos = Position(2, 4)
-        self[pot_pos].add(pot)
-        self.thing_positions[pot] = pot_pos
-
-        # Insert player at starting point
-        self.player = Player()
-        player_pos = Position(1, 1)
-        self[player_pos].add(self.player)
-        self.thing_positions[self.player] = player_pos
+        # Make some potions
+        for col in range(4, 7):
+            pot = things.Potion()
+            pot_pos = Position(2, col)
+            self[pot_pos].add(pot)
+            self.thing_positions[pot] = pot_pos
 
     # n.b.: There's deliberately no __setitem__, as the tile at any given
     # position has no reason to ever be overwritten.
@@ -151,27 +147,79 @@ class DungeonLevel(object):
         return self[new_position]
 
 
+class Dungeon(object):
+    """The game world itself.  This is the object the player interacts with
+    directly.  It also handles generating individual floors.
+    """
+    def __init__(self):
+        # TODO Need some better idea of how the dungeon should be structured.
+        # List of floors isn't really going to cut it.  Floors should probably
+        # identify themselves and know their own connections, in which case:
+        # does the dungeon itself need to know much?  Also, should floors
+        # remember their connections as weakrefs, or just identifiers that this
+        # object looks up?
+        self.floors = []
+        self.floors.append(DungeonFloor())
+        self.floors.append(DungeonFloor())
+
+        self.current_floor = self.floors[0]
+
+        # TODO Eventually, all but the current dungeon floors will be stored on
+        # disk; no need to keep them going if they're not playing.  When that
+        # happens, moving items between floors (including the player's starting
+        # position) will have to work by having a Dungeon.moving_things dict,
+        # mapping floor identifiers to lists of things waiting to move there.
+
+        # Create the player object and inject it into the first floor
+        # XXX grody
+        self.player = Player()
+        player_pos = Position(1, 1)  # XXX this sucks.  positioning needs a lot of work
+        self.current_floor[player_pos].add(self.player)
+        self.current_floor.thing_positions[self.player] = player_pos
+
+        # Inject stairs into the first floor too
+        stairs = StaircaseDown()
+        self.current_floor[Position(1, 2)].architecture = stairs
+
+
     ### Player commands.  Each of these methods represents an action the player
     ### has deliberately taken
     # XXX: is passing the entire toplevel interface down here such a good idea?
-    def _act_move_delta(self, ui, offset):
-        new_tile = self.move_thing(self.player, offset)
+    def _cmd_move_delta(self, ui, offset):
+        new_tile = self.current_floor.move_thing(self.player, offset)
         if new_tile and new_tile.items:
-            ui.message("There are items here.")
+            ui.message(u"You see here: {0}.".format(
+                u','.join(item.name() for item in new_tile.items)))
 
-    def act_move_up(self, ui):
-        self._act_move_delta(ui, Offset(drow=-1, dcol=0))
-    def act_move_down(self, ui):
-        self._act_move_delta(ui, Offset(drow=+1, dcol=0))
-    def act_move_left(self, ui):
-        self._act_move_delta(ui, Offset(drow=0, dcol=-1))
-    def act_move_right(self, ui):
-        self._act_move_delta(ui, Offset(drow=0, dcol=+1))
+    def cmd_move_up(self, ui):
+        self._cmd_move_delta(ui, Offset(drow=-1, dcol=0))
+    def cmd_move_down(self, ui):
+        self._cmd_move_delta(ui, Offset(drow=+1, dcol=0))
+    def cmd_move_left(self, ui):
+        self._cmd_move_delta(ui, Offset(drow=0, dcol=-1))
+    def cmd_move_right(self, ui):
+        self._cmd_move_delta(ui, Offset(drow=0, dcol=+1))
 
+    def cmd_descend(self, ui):
+        # XXX is this right
+        if not isinstance(self.current_floor[self.current_floor.thing_positions[self.player]].architecture, StaircaseDown):
+            ui.message("You can't go down here.")
+            return
+        del self.current_floor.thing_positions[self.player]
+        self.current_floor = self.floors[1]  # XXX uhhhhhh.
+        # XXX need to put the player on the corresponding up staircase, or
+        # somewhere else if it's blocked or doesn't exist...
+        player_pos = Position(1, 1)
+        self.current_floor[player_pos].add(self.player)
+        self.current_floor.thing_positions[self.player] = player_pos
 
+    def cmd_take(self, ui):
+        tile = self.current_floor[self.current_floor.thing_positions[self.player]]
+        items = tile.items
+        tile.items = []
 
-class Dungeon(object):
-    # TODO
-    pass
-
+        self.player.inventory.extend(items)
+        for item in items:
+            del self.current_floor.thing_positions[item]
+            ui.message("Got {0}.".format(item.name()))
 

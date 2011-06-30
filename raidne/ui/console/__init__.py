@@ -5,30 +5,31 @@ import urwid
 from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
-from raidne.game.dungeon import DungeonLevel
+from raidne.game.dungeon import Dungeon
 from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
 from raidne.util import Offset
 
+# TODO probably needs to be scrollable -- in which case the SolidFill overlay below can go away
 class PlayingFieldWidget(urwid.FixedWidget):
     _selectable = True
 
-    def __init__(self, dungeon_level, interface_proxy):
-        self.dungeon_level = dungeon_level
+    def __init__(self, dungeon, interface_proxy):
+        self.dungeon = dungeon
         self.interface_proxy = interface_proxy
 
     def pack(self, size, focus=False):
         # Returns the size of the fixed playing field.
-        return self.dungeon_level.size
+        return self.dungeon.current_floor.size
 
     def render(self, size, focus=False):
         # Build a view of the architecture
         viewport = []
         attrs = []
-        for row in range(self.dungeon_level.size.rows):
+        for row in range(self.dungeon.current_floor.size.rows):
             viewport_chars = []
             attr_row = []
-            for col in range(self.dungeon_level.size.cols):
-                tile = self.dungeon_level[row, col]
+            for col in range(self.dungeon.current_floor.size.cols):
+                tile = self.dungeon.current_floor[row, col]
                 char, palette = rendering_for(tile.topmost_thing)
 
                 # XXX this is getting way inefficient man; surely a better approach
@@ -44,21 +45,31 @@ class PlayingFieldWidget(urwid.FixedWidget):
         return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
 
     def keypress(self, size, key):
+        # TODO it seems like these should be handled by the interface object.
+        # maybe that should become a widget itself and get keypresses from
+        # here?  surely something besides a dungeon FLOOR object should be
+        # responsible for this.
         if key == 'q':
             raise ExitMainLoop
 
         if key == 'up':
-            self.dungeon_level.act_move_up(self.interface_proxy)
+            self.dungeon.cmd_move_up(self.interface_proxy)
         elif key == 'down':
-            self.dungeon_level.act_move_down(self.interface_proxy)
+            self.dungeon.cmd_move_down(self.interface_proxy)
         elif key == 'left':
-            self.dungeon_level.act_move_left(self.interface_proxy)
+            self.dungeon.cmd_move_left(self.interface_proxy)
         elif key == 'right':
-            self.dungeon_level.act_move_right(self.interface_proxy)
+            self.dungeon.cmd_move_right(self.interface_proxy)
+        elif key == '>':
+            self.dungeon.cmd_descend(self.interface_proxy)
+        elif key == ',':
+            self.dungeon.cmd_take(self.interface_proxy)
+        elif key == 'i':
+            self.interface_proxy.show_inventory()
         else:
             return key
 
-        # TODO: _invalidate() should probably be decided by the dungeon level.
+        # TODO: _invalidate() should probably be decided by the dungeon floor.
         # could use some more finely-tuned form of repainting
         self._invalidate()
 
@@ -66,8 +77,30 @@ class PlayingFieldWidget(urwid.FixedWidget):
         return True
 
 
+### Inventory
+
+class InventoryWidget(urwid.ListBox):
+    pass
+
+class InventoryItemWidget(urwid.Text):
+    _selectable = False
+
+    def render(self, size, focus=False):
+        (old_text, attr) = self.get_text()
+        if focus:
+            self.set_text(("WHOA", attr))
+        ret = urwid.Text.render(self, size, focus)
+        self.set_text((old_text, attr))
+        return ret
+
+    def keypress(self, size, key):
+        return key
+
+
+### Main stuff
+
 class ConsoleProxy(object):
-    """This is the `ui` object passed to a lot of DungeonLevel methods.  It
+    """This is the `ui` object passed to a lot of DungeonFloor methods.  It
     allows game logic to trigger particular behaviors in the UI, while letting
     the UI decide how to actually implement them.
     """
@@ -78,58 +111,77 @@ class ConsoleProxy(object):
     def message(self, message):
         self.interface.push_message(message)
 
+    def show_inventory(self):
+        self.interface.show_inventory()
+
 
 class RaidneInterface(object):
 
+    def __init__(self):
+        self.init_display()
+
     def init_display(self):
+        self.proxy = ConsoleProxy(self)
+
+        ### Main window:
         # +-------------+-------+
         # |             | stats |
-        # |     map     | inv.  |
+        # |     map     | etc.  |
         # |             |       |
         # +-------------+-------+
         # | messages area       |
         # +---------------------+
 
-        self.proxy = ConsoleProxy(self)
-
+        self.dungeon = Dungeon()
         # FIXME this is a circular reference.  can urwid objects find their own containers?
-        playing_field = PlayingFieldWidget(DungeonLevel(), self.proxy)
+        playing_field = PlayingFieldWidget(self.dungeon, interface_proxy=self.proxy)
         play_area = urwid.Overlay(
             playing_field, urwid.SolidFill(' '),
             align='left', width=None,
             valign='top', height=None,
         )
 
-        player_status = urwid.Text("Player status is heeeere.")
-
         self.message_pane = urwid.ListBox(
             urwid.SimpleListWalker([])
         )
 
-        #play_area = urwid.SolidFill(' ')
-        player_status = urwid.SolidFill('x')
+        self.player_status_pane = urwid.SolidFill('x')
         top = urwid.Columns(
-            [play_area, ('fixed', 40, player_status)],
+            [play_area, ('fixed', 40, self.player_status_pane)],
         )
-        main = urwid.Pile(
+        self.main_layer = urwid.Pile(
             [top, ('fixed', 10, self.message_pane)],
         )
 
 
+        ### Inventory
+        self.inventory = InventoryWidget(
+            urwid.SimpleListWalker([])
+        )
 
-        # TODO I'm not sure the main loop should be inside a thing that calls itself?
-        loop = urwid.MainLoop(main)
+    def run(self):
+        self.loop = urwid.MainLoop(self.main_layer)
 
         # XXX what happens if the terminal doesn't actually support 256 colors?
-        loop.screen.set_terminal_properties(colors=256)
-        loop.screen.register_palette(PALETTE_ENTRIES)
+        self.loop.screen.set_terminal_properties(colors=256)
+        self.loop.screen.register_palette(PALETTE_ENTRIES)
 
         # Game loop
         self.push_message('Welcome to raidne!')
-        loop.run()
+        self.loop.run()
 
         # End
         print "Bye!"
+
+    def show_inventory(self):
+        walker = self.inventory.body
+        walker[:] = []
+        for item in self.dungeon.player.inventory:
+            walker.append(InventoryItemWidget(item.name()))
+
+        self.inventory.set_focus(0)
+        self.loop.widget = self.inventory
+
 
     def push_message(self, message):
         walker = self.message_pane.body
@@ -143,4 +195,4 @@ class RaidneInterface(object):
         self.message_pane.set_focus(len(walker) - 1)
 
 def main():
-    RaidneInterface().init_display()
+    RaidneInterface().run()

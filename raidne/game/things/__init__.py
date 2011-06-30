@@ -11,13 +11,18 @@ class Thing(object):
     floors, the player, traps, items, etc.
     """
 
+    ### Player interaction
+
+    def name(self):
+        raise NotImplementedError()
+
     ### Capability introspection
 
     def can_be_moved_onto(self, actor):
         """Returns a bool, declaring whether the `actor` can move onto this
         thing.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
     ### Triggers; like little event hooks
@@ -34,6 +39,8 @@ class Thing(object):
 
 
 ### ARCHITECTURE
+# TODO Most of these are immutable and can just be singletons; would save a lot
+# of rams.  Make it so.
 class Architecture(Thing):
     """Some part of the dungeon layout: a floor, a trap, etc.  Every point on a
     dungeon floor has some kind of architecture.
@@ -49,11 +56,31 @@ class Wall(Architecture):
     def can_be_moved_onto(self, actor):
         return False
 
+class Staircase(Architecture):
+    """A passageway to another dungeon floor."""
+    def can_be_moved_onto(self, actor):
+        return True
+
+class StaircaseDown(Staircase):
+    def name(self):
+        return "a staircase going down"
+class StaircaseUp(Staircase):
+    def name(self):
+        return "a staircase going up"
+
 
 ### CREATURES
 class Creature(Thing):
+    def __init__(self):
+        super(Creature, self).__init__()
+
+        self.inventory = []
+
     def can_be_moved_onto(self, actor):
         return False
+
+    # Non-overridden methods
+    # XXX inventory management, perhaps?  who controls take/drop?
 
 class Player(Creature):
     pass
@@ -65,4 +92,5 @@ class Item(Thing):
         return True
 
 class Potion(Item):
-    pass
+    def name(self):
+        return "potion"

@@ -47,6 +47,10 @@ def rendering_for(obj):
 def rendering_for(obj):
     return u'▒', 'default'
 
+@strict_multimethod(things.StaircaseDown)
+def rendering_for(obj):
+    return u'▙', 'default'
+
 
 ### Creatures
 
