@@ -42,6 +42,7 @@ class DungeonTile(object):
         """Returns the topmost Thing positioned on this tile."""
         return next(iter(self))
 
+    # TODO these probably shouldn't be publicly accessible
     def add(self, thing):
         if isinstance(thing, things.Creature):
             if self.creature:
@@ -69,7 +70,7 @@ class DungeonFloor(object):
             [DungeonTile(Wall()) for col in xrange(self.size.cols)]
             for row in xrange(self.size.rows)
         ]
-        self.thing_positions = {}
+        self._thing_positions = {}
 
         # Build a little test room...
         for row in range(1, self.size.rows - 1):
@@ -80,10 +81,7 @@ class DungeonFloor(object):
 
         # Make some potions
         for col in range(4, 7):
-            pot = things.Potion()
-            pot_pos = Position(2, col)
-            self[pot_pos].add(pot)
-            self.thing_positions[pot] = pot_pos
+            self._place_thing(things.Potion(), Position(2, col))
 
     # n.b.: There's deliberately no __setitem__, as the tile at any given
     # position has no reason to ever be overwritten.
@@ -100,16 +98,16 @@ class DungeonFloor(object):
             for col in self.size.cols:
                 yield Position(row, col)
 
-    def position_of(self, thing):
-        """Returns the position of the given Thing, which must exist on this
+    def find_thing(self, thing):
+        """Returns the tile containing the given Thing, which must exist on this
         dungeon level.
         """
-        return self.thing_positions[thing]
+        return self[self._thing_positions[thing]]
 
 
-    def move_thing(self, actor, target):
-        """Call to move a thing to a new target position.  `target` may be
-        either a Position or an Offset.
+    def travel(self, actor, target):
+        """A thing is moving to a new target position.  `target` may be either
+        a Position or an Offset.
 
         This method makes no attempt to validate whether the thing has the
         ability to move this far, or indeed at all -- it's only concerned with
@@ -121,7 +119,7 @@ class DungeonFloor(object):
         """
         # XXX return something more useful?
 
-        old_position = self.position_of(actor)
+        old_position = self._thing_positions[actor]
 
         # If an offset is given, apply it to the thing's current position
         if isinstance(target, Offset):
@@ -138,13 +136,23 @@ class DungeonFloor(object):
         # Perform the move
         self[old_position].remove(actor)
         self[new_position].add(actor)
-        self.thing_positions[actor] = new_position
+        self._thing_positions[actor] = new_position
 
         # Let the new tile react
         for thing in self[new_position]:
             thing.trigger_moved_onto(actor)
 
         return self[new_position]
+
+    def _place_thing(self, thing, position):
+        assert thing not in self._thing_positions
+        self[position].add(thing)
+        self._thing_positions[thing] = position
+
+    def _remove_thing(self, thing):
+        assert thing in self._thing_positions
+        position = self._thing_positions.pop(thing)
+        self[position].remove(thing)
 
 
 class Dungeon(object):
@@ -173,9 +181,7 @@ class Dungeon(object):
         # Create the player object and inject it into the first floor
         # XXX grody
         self.player = Player()
-        player_pos = Position(1, 1)  # XXX this sucks.  positioning needs a lot of work
-        self.current_floor[player_pos].add(self.player)
-        self.current_floor.thing_positions[self.player] = player_pos
+        self.current_floor._place_thing(self.player, Position(1, 1))
 
         # Inject stairs into the first floor too
         stairs = StaircaseDown()
@@ -186,7 +192,7 @@ class Dungeon(object):
     ### has deliberately taken
     # XXX: is passing the entire toplevel interface down here such a good idea?
     def _cmd_move_delta(self, ui, offset):
-        new_tile = self.current_floor.move_thing(self.player, offset)
+        new_tile = self.current_floor.travel(self.player, offset)
         if new_tile and new_tile.items:
             ui.message(u"You see here: {0}.".format(
                 u','.join(item.name() for item in new_tile.items)))
@@ -202,24 +208,21 @@ class Dungeon(object):
 
     def cmd_descend(self, ui):
         # XXX is this right
-        if not isinstance(self.current_floor[self.current_floor.thing_positions[self.player]].architecture, StaircaseDown):
+        if not isinstance(self.current_floor.find_thing(self.player).architecture, StaircaseDown):
             ui.message("You can't go down here.")
             return
-        del self.current_floor.thing_positions[self.player]
+        self.current_floor._remove_thing(self.player)
         self.current_floor = self.floors[1]  # XXX uhhhhhh.
         # XXX need to put the player on the corresponding up staircase, or
         # somewhere else if it's blocked or doesn't exist...
-        player_pos = Position(1, 1)
-        self.current_floor[player_pos].add(self.player)
-        self.current_floor.thing_positions[self.player] = player_pos
+        self.current_floor._place_thing(self.player, Position(1, 1))
 
     def cmd_take(self, ui):
-        tile = self.current_floor[self.current_floor.thing_positions[self.player]]
+        tile = self.current_floor.find_thing(self.player)
         items = tile.items
-        tile.items = []
 
         self.player.inventory.extend(items)
         for item in items:
-            del self.current_floor.thing_positions[item]
+            self.current_floor._remove_thing(item)
             ui.message("Got {0}.".format(item.name()))
 
