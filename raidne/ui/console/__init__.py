@@ -80,18 +80,30 @@ class PlayingFieldWidget(urwid.FixedWidget):
 ### Inventory
 
 class InventoryWidget(urwid.ListBox):
-    pass
+
+    def __init__(self):
+        # Create ourselves a walker
+        walker = urwid.SimpleListWalker([])
+        urwid.ListBox.__init__(self, walker)
+
+    def set_inventory(self, inventory):
+        walker = self.body
+        walker[:] = []  # Empty in-place
+
+        for item in inventory:
+            widget = InventoryItemWidget(item.name())
+            # XXX maybe the map should be part of the item widget?
+            wrapped = urwid.AttrMap(widget, 'inventory-default', 'inventory-selected')
+            walker.append(wrapped)
+
+    def keypress(self, size, key):
+        if key == 'esc':
+            raise urwid.ExitMainLoop()
+        else:
+            return urwid.ListBox.keypress(self, size, key)
 
 class InventoryItemWidget(urwid.Text):
-    _selectable = False
-
-    def render(self, size, focus=False):
-        (old_text, attr) = self.get_text()
-        if focus:
-            self.set_text(("WHOA", attr))
-        ret = urwid.Text.render(self, size, focus)
-        self.set_text((old_text, attr))
-        return ret
+    _selectable = True
 
     def keypress(self, size, key):
         return key
@@ -153,12 +165,6 @@ class RaidneInterface(object):
             [top, ('fixed', 10, self.message_pane)],
         )
 
-
-        ### Inventory
-        self.inventory = InventoryWidget(
-            urwid.SimpleListWalker([])
-        )
-
     def run(self):
         self.loop = urwid.MainLoop(self.main_layer)
 
@@ -174,13 +180,16 @@ class RaidneInterface(object):
         print "Bye!"
 
     def show_inventory(self):
-        walker = self.inventory.body
-        walker[:] = []
-        for item in self.dungeon.player.inventory:
-            walker.append(InventoryItemWidget(item.name()))
+        inv = self.dungeon.player.inventory
+        if not inv:
+            self.push_message("You aren't carrying anything.")
+            return
 
-        self.inventory.set_focus(0)
-        self.loop.widget = self.inventory
+        widget = InventoryWidget()
+        widget.set_inventory(inv)
+
+        # Run the inventory dialog within its own little event loop
+        urwid.MainLoop(widget, screen=self.loop.screen).run()
 
 
     def push_message(self, message):

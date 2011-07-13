@@ -18,6 +18,8 @@ PALETTE_ENTRIES = [
     # UI
     ('message-old', 'dark gray', 'default', None, '#666', 'default'),
     ('message-fresh', 'white', 'default', None, '#fff', 'default'),
+    ('inventory-default', 'default', 'default', None, 'default', 'default'),
+    ('inventory-selected', 'default', 'dark blue', None, 'default', '#068'),
 
     # Architecture
     ('floor', 'black', 'default', None, '#666', 'default'),
