@@ -11,11 +11,9 @@ from raidne.util import Offset, Position
 
 # TODO probably needs to be scrollable -- in which case the SolidFill overlay below can go away
 class PlayingFieldWidget(urwid.FixedWidget):
-    _selectable = True
-
-    def __init__(self, dungeon, interface_proxy):
+    def __init__(self, dungeon):
+        # XXX should this just accept a map, even?
         self.dungeon = dungeon
-        self.interface_proxy = interface_proxy
 
     def pack(self, size, focus=False):
         # Returns the size of the fixed playing field.
@@ -45,41 +43,6 @@ class PlayingFieldWidget(urwid.FixedWidget):
 
         # Needs to be wrapped in CompositeCanvas for overlaying to work
         return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
-
-    def keypress(self, size, key):
-        if key == 'q':
-            raise ExitMainLoop
-
-        if key == 'up':
-            self.dungeon.cmd_move_up(self.interface_proxy)
-        elif key == 'down':
-            self.dungeon.cmd_move_down(self.interface_proxy)
-        elif key == 'left':
-            self.dungeon.cmd_move_left(self.interface_proxy)
-        elif key == 'right':
-            self.dungeon.cmd_move_right(self.interface_proxy)
-        elif key == '>':
-            self.dungeon.cmd_descend(self.interface_proxy)
-        elif key == ',':
-            self.dungeon.cmd_take(self.interface_proxy)
-        elif key == 'i':
-            # XXX why does this go through the proxy?
-            self.interface_proxy.show_inventory()
-        else:
-            return key
-
-        # TODO: _invalidate() should probably be decided by the dungeon floor.
-        # could use some more finely-tuned form of repainting
-        self._invalidate()
-
-        # TODO the current idea is that this will just run through everyone who
-        # needs to take their turn before the player -- thus returning
-        # immediately if the player didn't just do something that consumed a
-        # turn.  it'll need to be more complex later for animating, long
-        # events, other delays, whatever.
-        self.dungeon.do_monster_turns()
-
-        self._invalidate()
 
     def mouse_event(self, *args, **kwargs):
         return True
@@ -144,28 +107,24 @@ class ConsoleProxy(object):
         self.interface.show_inventory()
 
 
-class RaidneInterface(object):
+class MainWidget(urwid.WidgetWrap):
+    """The main game window."""
+    # +-------------+-------+
+    # |             | stats |
+    # |     map     | etc.  |
+    # |             |       |
+    # +-------------+-------+
+    # | messages area       |
+    # +---------------------+
+    _selectable = True
 
-    def __init__(self):
-        self.init_display()
+    def __init__(self, dungeon, proxy):
+        self.dungeon = dungeon
+        self.interface_proxy = proxy
 
-    def init_display(self):
-        self.proxy = ConsoleProxy(self)
-
-        ### Main window:
-        # +-------------+-------+
-        # |             | stats |
-        # |     map     | etc.  |
-        # |             |       |
-        # +-------------+-------+
-        # | messages area       |
-        # +---------------------+
-
-        self.dungeon = Dungeon()
-        # FIXME this is a circular reference.  can urwid objects find their own containers?
-        playing_field = PlayingFieldWidget(self.dungeon, interface_proxy=self.proxy)
+        self.playing_field = PlayingFieldWidget(dungeon)
         play_area = urwid.Overlay(
-            playing_field, urwid.SolidFill(' '),
+            self.playing_field, urwid.SolidFill(' '),
             align='left', width=None,
             valign='top', height=None,
         )
@@ -175,19 +134,72 @@ class RaidneInterface(object):
         )
 
         self.player_status_pane = PlayerStatusWidget()
+
+        # Arrange into two rows, the top of which is two columns
         top = urwid.Columns(
             [play_area, ('fixed', 40, self.player_status_pane)],
         )
-        # TODO this ought to be a top-level thing that worries about creating
-        # its own children, and *it* should listen for keypresses...
-        self.main_layer = urwid.Pile(
+        main_widget = urwid.Pile(
             [top, ('fixed', 10, self.message_pane)],
         )
 
+        # Call the superclass's actual constructor, which accepts a wrappee
+        urwid.WidgetWrap.__init__(self, main_widget)
+
+    def keypress(self, size, key):
+        if key == 'q':
+            raise ExitMainLoop
+
+        if key == 'up':
+            self.dungeon.cmd_move_up(self.interface_proxy)
+        elif key == 'down':
+            self.dungeon.cmd_move_down(self.interface_proxy)
+        elif key == 'left':
+            self.dungeon.cmd_move_left(self.interface_proxy)
+        elif key == 'right':
+            self.dungeon.cmd_move_right(self.interface_proxy)
+        elif key == '>':
+            self.dungeon.cmd_descend(self.interface_proxy)
+        elif key == ',':
+            self.dungeon.cmd_take(self.interface_proxy)
+        elif key == 'i':
+            # XXX why does this go through the proxy?
+            self.interface_proxy.show_inventory()
+        else:
+            return key
+
+        # TODO: _invalidate() should probably be decided by the dungeon floor.
+        # could use some more finely-tuned form of repainting
+        self._invalidate()
+
+        # TODO the current idea is that this will just run through everyone who
+        # needs to take their turn before the player -- thus returning
+        # immediately if the player didn't just do something that consumed a
+        # turn.  it'll need to be more complex later for animating, long
+        # events, other delays, whatever.
+        self.dungeon.do_monster_turns()
+
+        self._invalidate()
+        self.playing_field._invalidate()
+
+
+class RaidneInterface(object):
+
+    def __init__(self):
+        self.init_display()
+
+    def init_display(self):
+        self.proxy = ConsoleProxy(self)
+
+        self.dungeon = Dungeon()
+        # FIXME this is a circular reference.  can urwid objects find their own containers?
+        self.main_widget = MainWidget(self.dungeon, self.proxy)
+
     def run(self):
-        self.loop = urwid.MainLoop(self.main_layer)
+        self.loop = urwid.MainLoop(self.main_widget)
 
         # XXX what happens if the terminal doesn't actually support 256 colors?
+        # TODO create this screen separately, since multiple loops use it
         self.loop.screen.set_terminal_properties(colors=256)
         self.loop.screen.register_palette(PALETTE_ENTRIES)
 
@@ -212,7 +224,8 @@ class RaidneInterface(object):
 
 
     def push_message(self, message):
-        walker = self.message_pane.body
+        # XXX move most of this logic to the message pane itelf dood
+        walker = self.main_widget.message_pane.body
         if walker:
             last_message = walker[-1]
             last_message.set_text(
@@ -220,7 +233,7 @@ class RaidneInterface(object):
 
         walker.append(
             urwid.Text(('message-fresh', message)))
-        self.message_pane.set_focus(len(walker) - 1)
+        self.main_widget.message_pane.set_focus(len(walker) - 1)
 
 def main():
     RaidneInterface().run()
