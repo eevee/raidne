@@ -19,20 +19,26 @@ class Size(namedtuple('Size', ['rows', 'cols'])):
         return (
             position.row >= 0 and
             position.col >= 0 and
-            position.row <= self.rows and
-            position.row <= self.cols
+            position.row < self.rows and
+            position.row < self.cols
         )
 
 class Position(namedtuple('Position', ['row', 'col'])):
     """Coordinate of a dungeon floor."""
     __slots__ = ()
 
-    def plus_offset(self, offset):
-        """Returns a new Position shifted by the given Offset."""
-        return type(self)(
-            self.row + offset.drow,
-            self.col + offset.dcol)
+    def relative_to(self, position):
+        """Compatibility with `Offset.relative_to`."""
+        return self
 
 class Offset(namedtuple('Offset', ['drow', 'dcol'])):
     """Distance traveled from a Position."""
     __slots__ = ()
+
+    def relative_to(self, position):
+        """Returns a new absolute `Position`, by applying this one to the
+        passed `position`.
+        """
+        return Position(
+            self.drow + position.row,
+            self.dcol + position.col)

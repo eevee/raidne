@@ -7,7 +7,7 @@ from urwid.util import apply_target_encoding
 
 from raidne.game.dungeon import Dungeon
 from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
-from raidne.util import Offset
+from raidne.util import Offset, Position
 
 # TODO probably needs to be scrollable -- in which case the SolidFill overlay below can go away
 class PlayingFieldWidget(urwid.FixedWidget):
@@ -25,12 +25,14 @@ class PlayingFieldWidget(urwid.FixedWidget):
         # Build a view of the architecture
         viewport = []
         attrs = []
-        for row in range(self.dungeon.current_floor.size.rows):
+        map = self.dungeon.current_floor
+
+        for row in xrange(map.size.rows):
             viewport_chars = []
             attr_row = []
-            for col in range(self.dungeon.current_floor.size.cols):
-                tile = self.dungeon.current_floor[row, col]
-                char, palette = rendering_for(tile.topmost_thing)
+            for col in xrange(map.size.cols):
+                topmost_thing = map.tile(Position(row, col)).topmost
+                char, palette = rendering_for(topmost_thing)
 
                 # XXX this is getting way inefficient man; surely a better approach
                 # TODO pass the rle to TextCanvas
@@ -45,10 +47,6 @@ class PlayingFieldWidget(urwid.FixedWidget):
         return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
 
     def keypress(self, size, key):
-        # TODO it seems like these should be handled by the interface object.
-        # maybe that should become a widget itself and get keypresses from
-        # here?  surely something besides a dungeon FLOOR object should be
-        # responsible for this.
         if key == 'q':
             raise ExitMainLoop
 
@@ -65,6 +63,7 @@ class PlayingFieldWidget(urwid.FixedWidget):
         elif key == ',':
             self.dungeon.cmd_take(self.interface_proxy)
         elif key == 'i':
+            # XXX why does this go through the proxy?
             self.interface_proxy.show_inventory()
         else:
             return key
@@ -73,8 +72,26 @@ class PlayingFieldWidget(urwid.FixedWidget):
         # could use some more finely-tuned form of repainting
         self._invalidate()
 
+        # TODO the current idea is that this will just run through everyone who
+        # needs to take their turn before the player -- thus returning
+        # immediately if the player didn't just do something that consumed a
+        # turn.  it'll need to be more complex later for animating, long
+        # events, other delays, whatever.
+        self.dungeon.do_monster_turns()
+
+        self._invalidate()
+
     def mouse_event(self, *args, **kwargs):
         return True
+
+class PlayerStatusWidget(urwid.Pile):
+    def __init__(self):
+        widgets = []
+
+        widgets.append(('flow', urwid.Text("HP 10")))
+        widgets.append(urwid.SolidFill('x'))
+
+        urwid.Pile.__init__(self, widgets)
 
 
 ### Inventory
@@ -157,10 +174,12 @@ class RaidneInterface(object):
             urwid.SimpleListWalker([])
         )
 
-        self.player_status_pane = urwid.SolidFill('x')
+        self.player_status_pane = PlayerStatusWidget()
         top = urwid.Columns(
             [play_area, ('fixed', 40, self.player_status_pane)],
         )
+        # TODO this ought to be a top-level thing that worries about creating
+        # its own children, and *it* should listen for keypresses...
         self.main_layer = urwid.Pile(
             [top, ('fixed', 10, self.message_pane)],
         )
