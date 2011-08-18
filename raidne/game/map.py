@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import raidne.exceptions as exceptions
 from raidne.game import things
-from raidne.util import Position, Size
+from raidne.util import Offset, Position, Size
 
 class Map(object):
     """Geometry of a dungeon floor.  Functions both as structure (architectural
@@ -36,6 +36,18 @@ class Map(object):
 
         return self
 
+    def __contains__(self, thing):
+        """Tests whether the given thing is on this map.  Note that this only
+        counts things actually on the map proper: inventories and containers
+        and so forth are not inspected.
+        """
+        # TODO index or whatever, then swap these impls
+        try:
+            self.find(thing)
+            return True
+        except ValueError:
+            return False
+
 
     def tile(self, position):
         """Returns a little wrapper object representing this spot on the map.
@@ -53,6 +65,16 @@ class Map(object):
             if thing in thinglist:
                 return self.tile(position)
         raise ValueError("No such thing on this map")
+
+    def distance_between(self, a, b):
+        """Returns some kinda object representing the space between two things.
+        """
+        # XXX this should return a useful object that can be used for pathing
+        # etc later
+        tile_a = self.find(a)
+        tile_b = self.find(b)
+
+        return tile_b.position - tile_a.position
 
     def put(self, thing, position):
         """Put the given `thing` somewhere on the map."""
@@ -166,3 +188,12 @@ class Tile(object):
         if self.position in self.map._critters:
             return self.map._critters[self.position]
         return None
+
+    _directions = (
+        Offset(0, +1), Offset(0, -1),
+        Offset(+1, 0), Offset(-1, 0))
+    def adjacent_tiles(self):
+        for direction in self._directions:
+            position = direction.relative_to(self.position)
+            if position in self.map.size:
+                yield self.map.tile(position)

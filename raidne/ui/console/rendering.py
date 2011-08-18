@@ -26,6 +26,7 @@ PALETTE_ENTRIES = [
 
     # Creatures
     ('player', 'yellow', 'default', None, '#ff6', 'default'),
+    ('newt', 'yellow', 'default', None, '#ff6', 'default'),
 
     # Items
     ('potion', 'light magenta', 'default', None, '#f6f', 'default'),
@@ -59,6 +60,10 @@ def rendering_for(obj):
 @strict_multimethod(things.Player)
 def rendering_for(obj):
     return u'☻', 'player'
+
+@strict_multimethod(things.Newt)
+def rendering_for(obj):
+    return u':', 'newt'
 
 
 ### Items

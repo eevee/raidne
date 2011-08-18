@@ -47,14 +47,28 @@ class PlayingFieldWidget(urwid.FixedWidget):
     def mouse_event(self, *args, **kwargs):
         return True
 
+
+### Player status, on the right side
+
 class PlayerStatusWidget(urwid.Pile):
     def __init__(self):
         widgets = []
 
-        widgets.append(('flow', urwid.Text("HP 10")))
+        # TODO use a widget for rendering meters here
+        self.health_widget = urwid.Text("xxx")
+
+        widgets.append(('flow', self.health_widget))
         widgets.append(urwid.SolidFill('x'))
 
         urwid.Pile.__init__(self, widgets)
+
+    def update(self, player):
+        self.health_widget.set_text("HP {0}".format(player.health.current))
+        # TODO this should detect whether anything changed and call _invalidate
+        # on itself only if necessary (or even just the child widgets?)
+
+class MeterWidget(urwid.Text):
+    pass
 
 
 ### Inventory
@@ -144,7 +158,7 @@ class MainWidget(urwid.WidgetWrap):
         )
 
         # Call the superclass's actual constructor, which accepts a wrappee
-        urwid.WidgetWrap.__init__(self, main_widget)
+        urwid.WidgetWrap.__init__(self, w=main_widget)
 
     def keypress(self, size, key):
         if key == 'q':
@@ -160,6 +174,8 @@ class MainWidget(urwid.WidgetWrap):
             self.dungeon.cmd_move_right(self.interface_proxy)
         elif key == '>':
             self.dungeon.cmd_descend(self.interface_proxy)
+        elif key == '.':
+            self.dungeon.cmd_wait(self.interface_proxy)
         elif key == ',':
             self.dungeon.cmd_take(self.interface_proxy)
         elif key == 'i':
@@ -177,10 +193,14 @@ class MainWidget(urwid.WidgetWrap):
         # immediately if the player didn't just do something that consumed a
         # turn.  it'll need to be more complex later for animating, long
         # events, other delays, whatever.
-        self.dungeon.do_monster_turns()
+        self.dungeon.do_monster_turns(self.interface_proxy)
 
+        # Update the display
+        # TODO this is max inefficient
         self._invalidate()
         self.playing_field._invalidate()
+
+        self.player_status_pane.update(self.dungeon.player)
 
 
 class RaidneInterface(object):

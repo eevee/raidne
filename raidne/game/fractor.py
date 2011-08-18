@@ -44,6 +44,8 @@ class RoomFractor(Fractor):
 
         # Place an item
         map.put(things.Potion(), Position(2, 3))
+        # Or two
+        map.put(things.Newt(), Position(2, 9))
 
         return map
 

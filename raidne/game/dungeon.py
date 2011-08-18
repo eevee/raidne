@@ -35,8 +35,29 @@ class Dungeon(object):
         self.player = things.Player()
         self.current_floor.put(self.player, Position(3, 3))
 
-    def do_monster_turns(self):
-        return
+    def do_monster_turns(self, proxy):
+        # Find all creatures
+        # XXX when real timing is implemented, we'll get a slightly less
+        # brute-force alg here that involves a queue of creatures that can go
+        # next
+        for position in self.current_floor.size.iter_positions():
+            tile = self.current_floor.tile(position)
+            if not tile.creature:
+                continue
+            if tile.creature is self.player:
+                # XXX perhaps do the player's turn here.  hell we could make
+                # this the whole event loop and yield for the player.  8)
+                continue
+            
+            # XXX probably want to pass a dungeon proxy object or something
+            action = tile.creature.think(self, self.current_floor)
+            if action:
+                action(proxy, self)
+
+
+            # XXX this on the other hand is definitely not right
+            if self.player.health.current == 0:
+                raise Exception("you died, game over!!")
 
     ### Player commands.  Each of these methods represents an action the player
     ### has deliberately taken
@@ -60,6 +81,9 @@ class Dungeon(object):
         self._cmd_move_delta(ui, Offset(drow=0, dcol=-1))
     def cmd_move_right(self, ui):
         self._cmd_move_delta(ui, Offset(drow=0, dcol=+1))
+
+    def cmd_wait(self, ui):
+        pass
 
     def cmd_descend(self, ui):
         map = self.current_floor
