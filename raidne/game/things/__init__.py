@@ -15,6 +15,8 @@ class Thing(object):
     floors, the player, traps, items, etc.
     """
 
+    is_player = False
+
     ### Player interaction
 
     def name(self):
@@ -143,6 +145,8 @@ class Creature(Thing):
         return None
 
 class Player(Creature):
+    is_player = True
+
     def __init__(self):
         super(Player, self).__init__()
 

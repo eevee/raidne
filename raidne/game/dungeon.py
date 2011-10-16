@@ -48,7 +48,7 @@ class Dungeon(object):
                 # XXX perhaps do the player's turn here.  hell we could make
                 # this the whole event loop and yield for the player.  8)
                 continue
-            
+
             # XXX probably want to pass a dungeon proxy object or something
             action = tile.creature.think(self, self.current_floor)
             if action:
@@ -59,28 +59,11 @@ class Dungeon(object):
             if self.player.health.current == 0:
                 raise Exception("you died, game over!!")
 
-    ### Player commands.  Each of these methods represents an action the player
-    ### has deliberately taken
-    # XXX: is passing the entire toplevel interface down here such a good idea?
-    def _cmd_move_delta(self, ui, offset):
-        try:
-            new_tile = self.current_floor.move(self.player, offset)
-        except exceptions.CollisionError:
-            return
+    def player_command(self, proxy, action):
+        """Call me when the player performs an action."""
+        assert action.actor == self.player
 
-        items = new_tile.items
-        if items:
-            ui.message(u"You see here: {0}.".format(
-                u','.join(item.name() for item in items)))
-
-    def cmd_move_up(self, ui):
-        self._cmd_move_delta(ui, Offset(drow=-1, dcol=0))
-    def cmd_move_down(self, ui):
-        self._cmd_move_delta(ui, Offset(drow=+1, dcol=0))
-    def cmd_move_left(self, ui):
-        self._cmd_move_delta(ui, Offset(drow=0, dcol=-1))
-    def cmd_move_right(self, ui):
-        self._cmd_move_delta(ui, Offset(drow=0, dcol=+1))
+        action(proxy, self)
 
     def cmd_wait(self, ui):
         pass

@@ -5,6 +5,7 @@ import urwid
 from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
+from raidne.game import actions
 from raidne.game.dungeon import Dungeon
 from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
 from raidne.util import Offset, Position
@@ -165,13 +166,13 @@ class MainWidget(urwid.WidgetWrap):
             raise ExitMainLoop
 
         if key == 'up':
-            self.dungeon.cmd_move_up(self.interface_proxy)
+            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=-1, dcol=0)))
         elif key == 'down':
-            self.dungeon.cmd_move_down(self.interface_proxy)
+            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=+1, dcol=0)))
         elif key == 'left':
-            self.dungeon.cmd_move_left(self.interface_proxy)
+            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=0, dcol=-1)))
         elif key == 'right':
-            self.dungeon.cmd_move_right(self.interface_proxy)
+            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=0, dcol=+1)))
         elif key == '>':
             self.dungeon.cmd_descend(self.interface_proxy)
         elif key == '.':
