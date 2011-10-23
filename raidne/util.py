@@ -54,3 +54,10 @@ class Offset(namedtuple('Offset', ['drow', 'dcol'])):
         return Position(
             self.drow + position.row,
             self.dcol + position.col)
+
+    @property
+    def step_length(self):
+        """Returns the maximum number of steps it would take to traverse this
+        distance.
+        """
+        return max(abs(self.drow), abs(self.dcol))

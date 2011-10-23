@@ -64,30 +64,3 @@ class Dungeon(object):
         assert action.actor == self.player
 
         action(proxy, self)
-
-    def cmd_wait(self, ui):
-        pass
-
-    def cmd_descend(self, ui):
-        map = self.current_floor
-        # XXX is this right?  perhaps objects should instead respond to
-        # attempted actions themselves.
-        if not isinstance(map.find(self.player).architecture, things.StaircaseDown):
-            ui.message("You can't go down here.")
-            return
-
-        map.remove(self.player)
-        map = self.current_floor = self.floors[1]  # XXX uhhhhhh.
-        # XXX need to put the player on the corresponding up staircase, or
-        # somewhere else if it's blocked or doesn't exist...
-        map.put(self.player, Position(1, 1))
-
-    def cmd_take(self, ui):
-        tile = self.current_floor.find(self.player)
-        items = tile.items
-
-        self.player.inventory.extend(items)
-        for item in items:
-            self.current_floor.remove(item)
-            ui.message("Got {0}.".format(item.name()))
-

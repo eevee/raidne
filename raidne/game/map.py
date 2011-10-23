@@ -164,6 +164,9 @@ class Tile(object):
         if include_architecture:
             yield self.map._architecture[self.position.row][self.position.col]
 
+    def __eq__(self, other):
+        return self.map == other.map and self.position == other.position
+
     @property
     def topmost(self):
         """The topmost thing here, including the architecture if this tile is

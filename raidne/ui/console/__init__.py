@@ -166,21 +166,23 @@ class MainWidget(urwid.WidgetWrap):
             raise ExitMainLoop
 
         if key == 'up':
-            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=-1, dcol=0)))
+            self._act_in_direction(Offset(drow=-1, dcol=0))
         elif key == 'down':
-            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=+1, dcol=0)))
+            self._act_in_direction(Offset(drow=+1, dcol=0))
         elif key == 'left':
-            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=0, dcol=-1)))
+            self._act_in_direction(Offset(drow=0, dcol=-1))
         elif key == 'right':
-            self.dungeon.player_command(self.interface_proxy, actions.Walk(self.dungeon.player, Offset(drow=0, dcol=+1)))
+            self._act_in_direction(Offset(drow=0, dcol=+1))
         elif key == '>':
-            self.dungeon.cmd_descend(self.interface_proxy)
+            self.dungeon.player_command(self.interface_proxy, actions.Descend(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).architecture))
         elif key == '.':
-            self.dungeon.cmd_wait(self.interface_proxy)
+            pass
         elif key == ',':
-            self.dungeon.cmd_take(self.interface_proxy)
+            # XXX broken
+            self.dungeon.player_command(self.interface_proxy, actions.PickUp(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).items[0]))
         elif key == 'i':
             # XXX why does this go through the proxy?
+            # TODO i don't think this takes a turn, since it isn't really an action
             self.interface_proxy.show_inventory()
         else:
             return key
@@ -202,6 +204,25 @@ class MainWidget(urwid.WidgetWrap):
         self.playing_field._invalidate()
 
         self.player_status_pane.update(self.dungeon.player)
+
+    def _act_in_direction(self, direction):
+        """Figure out the right action to perform when the player tries to move
+        in the given direction.
+        """
+        assert direction.step_length == 1
+        # TODO this still seems pretty wordy to me.  should dungeon wrap its
+        # own current floor?
+        # XXX this will explode if the player tries to move off the map
+        target_tile = self.dungeon.current_floor.tile(
+            direction.relative_to(
+                self.dungeon.current_floor.find(self.dungeon.player).position))
+
+        if target_tile.creature:
+            action = actions.MeleeAttack(self.dungeon.player, target_tile.creature)
+        else:
+            action = actions.Walk(self.dungeon.player, direction)
+
+        return self.dungeon.player_command(self.interface_proxy, action)
 
 
 class RaidneInterface(object):
