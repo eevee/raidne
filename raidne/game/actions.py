@@ -26,6 +26,15 @@ class MeleeAttack(object):
         # And inflict!
         self.target.health.modify(- damage.amount)
 
+        # Handle death.
+        # XXX this should probably go in the creature's damage handler.
+        # XXX we need a real event queue to put this on
+        # XXX looks like thing types can't use the python class system.  type needs to be an attr
+        if self.target.health.current == 0:
+            # XXX meters should probably support bool or something
+            ui_proxy.message("{0} dies".format(self.target.name()))
+            dungeon.current_floor.remove(self.target)
+
 class Walk(object):
     cost = 24  # TODO
 
