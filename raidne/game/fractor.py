@@ -38,14 +38,14 @@ class RoomFractor(Fractor):
         self.draw_room(canvas, top=0, bottom=19, left=0, right=29)
 
         # Place the stairs
-        canvas[10][10] = things.StaircaseDown()
+        canvas[10][10] = things.Thing(type=things.staircase_down)
 
         map = Map.from_fractor_canvas(canvas)
 
         # Place an item
-        map.put(things.Potion(), Position(2, 3))
+        map.put(things.Thing(type=things.potion), Position(2, 3))
         # Or two
-        map.put(things.Newt(), Position(2, 9))
+        map.put(things.Thing(type=things.newt), Position(2, 9))
 
         return map
 
@@ -60,13 +60,13 @@ class RoomFractor(Fractor):
 
         # Draw the top and bottom walls
         for col in xrange(left, right + 1):
-            map[top][col] = things.Wall()
-            map[bottom][col] = things.Wall()
+            map[top][col] = things.Thing(type=things.wall)
+            map[bottom][col] = things.Thing(type=things.wall)
 
         # Draw the left and right walls, and the space inside
         for row in xrange(top + 1, bottom):
-            map[row][left] = things.Wall()
-            map[row][right] = things.Wall()
+            map[row][left] = things.Thing(type=things.wall)
+            map[row][right] = things.Thing(type=things.wall)
 
             for col in xrange(left + 1, right):
-                map[row][col] = things.Floor()
+                map[row][col] = things.Thing(type=things.floor)

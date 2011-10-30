@@ -6,98 +6,60 @@ this module directly; it contains everything.
 """
 import random
 
-from raidne.game import actions
+from raidne.game import action, effect
 from raidne.game.things.bits import Meter
 
-### Ultimate base class slash documentation
 class Thing(object):
-    """Any discrete object that can appear within the dungeon.  Includes walls,
-    floors, the player, traps, items, etc.
+    """Represents a discrete object that can appear within the dungeon.
+    Includes walls, floors, the player, traps, items, etc.
     """
 
     is_player = False
 
-    ### Player interaction
 
-    def name(self):
-        raise NotImplementedError()
 
-    ### Capability introspection
+    def __init__(self, type, **kwargs):
+        """Create an object.
 
-    def can_be_moved_onto(self, actor):
-        """Returns a bool, declaring whether the `actor` can move onto this
-        thing.
+        type
+            A ThingType object encapsulating this Thing's behavior.
         """
-        raise NotImplementedError()
+        # TODO finish this change and build a parallel hierarchy of thingtype classes
+        assert isinstance(type, ThingType)
 
+        self._type = type
 
-    ### Triggers; like little event hooks
-
-    def trigger_moved_onto(self, actor):
-        """Hook to do something-or-other when an `actor` moves onto this thing.
-
-        No useful return value.
-
-        May raise a CollisionError if this isn't allowed, though callers should
-        check the above method first.
-        """
-        pass
-
-
-### ARCHITECTURE
-# TODO Most of these are immutable and can just be singletons; would save a lot
-# of rams.  Make it so.
-class Architecture(Thing):
-    """Some part of the dungeon layout: a floor, a trap, etc.  Every point on a
-    dungeon floor has some kind of architecture.
-    """
-
-class Floor(Architecture):
-    """Empty generic cave floor."""
-    def can_be_moved_onto(self, actor):
-        return True
-
-class Wall(Architecture):
-    """Generic cave wall."""
-    def can_be_moved_onto(self, actor):
-        return False
-
-class Staircase(Architecture):
-    """A passageway to another dungeon floor."""
-    def can_be_moved_onto(self, actor):
-        return True
-
-class StaircaseDown(Staircase):
-    def name(self):
-        return "a staircase going down"
-class StaircaseUp(Staircase):
-    def name(self):
-        return "a staircase going up"
-
-
-### CREATURES
-#Stats = namedtuple('Stats', "str per end cha int agi lck")
-class Creature(Thing):
-    # XXX these should be controlled by something.
-    #     probably depends how stats work, how species plays a part, how they
-    #     affect health, etc.
-    stats = None
-    attack_power = 1
-
-    def __init__(self):
-        super(Creature, self).__init__()
+        self._hooks = []
 
         self.inventory = []
-        self.health = Meter(1)
+        if type.max_health:
+            self.health = Meter(type.max_health)
 
-    def can_be_moved_onto(self, actor):
-        return False
 
+    def isa(self, thing_type):
+        if isinstance(thing_type, type):
+            return isinstance(self._type, thing_type)
+        else:
+            return self._type is thing_type
+
+
+    ### Properties
+    # XXX only some thingtypes have certain properties.  components ahoy?
+    # XXX this is where i can do hooks, caching, etc
+
+    @property
+    def solid(self):
+        return self._type.solid
+
+    @property
     def name(self):
-        return "it"
+        return self._type.name
 
-    # Non-overridden methods
-    # XXX inventory management, perhaps?  who controls take/drop?
+    @property
+    def attack_power(self):
+        return self._type.attack_power
+
+    ### Other ThingType proxies
 
     def think(self, dungeon, map):
         """Invokes creature AI."""
@@ -125,7 +87,7 @@ class Creature(Thing):
         # TODO if delta in attack_range:...
         if delta.drow**2 + delta.dcol**2 <= 1:
             # XXX move this into the dungeon, dungeon proxy, whatever
-            return actions.MeleeAttack(self, player)
+            return action.MeleeAttack(self, player)
 
         # 2. Is the player visible?  If so, run straight at him like a lunatic.
         # TODO the map is currently just a big room and all, so the player is
@@ -133,42 +95,77 @@ class Creature(Thing):
         pass
 
         # 3. Otherwise, just mill around or something.
-        # TODO can_be_moved_onto doesn't really cut it here.  also want to
+        # TODO solid doesn't really cut it here.  also want to
         # avoid traps and veer towards items, for example.
         # TODO but some traps are good!!  this is insane
-        # TODO i don't like the can_be_moved_onto nonsense in the first
-        # place to be honest
-        possible_tiles = [tile for tile in adjacent_tiles if all(thing.can_be_moved_onto(self) for thing in tile)]
+        possible_tiles = [tile for tile in adjacent_tiles if not any(thing.solid for thing in tile)]
         if possible_tiles:
-            return actions.Walk(self, random.choice(possible_tiles).position)
+            return action.Walk(self, random.choice(possible_tiles).position)
 
         return None
 
+
+class ThingType(object):
+    """Contains behavior for a particular type of Thing."""
+    solid = False
+    max_health = 0
+    name = "it"
+
+    def __init__(self, solid=False, max_health=None, name=None):
+        if solid:
+            self.solid = solid
+        if max_health:
+            self.max_health = max_health
+        if name:
+            self.name = name
+
+
+        self.action_effects = {}
+    # TODO doc me bro
+
+### ARCHITECTURE
+# TODO Most of these are immutable and can just be singletons; would save a lot
+# of rams.  Make it so.
+class Architecture(ThingType):
+    """Some part of the dungeon layout: a floor, a trap, etc.  Every point on a
+    dungeon floor has some kind of architecture.
+    """
+
+floor = Architecture()
+wall = Architecture(solid=True)
+staircase_up = Architecture()
+staircase_down = Architecture()
+trap = Architecture()
+
+
+
+
+
+
+### CREATURES
+#Stats = namedtuple('Stats', "str per end cha int agi lck")
+class Creature(ThingType):
+    # XXX these should be controlled by something.
+    #     probably depends how stats work, how species plays a part, how they
+    #     affect health, etc.
+    stats = None
+    attack_power = 1
+    name = "it"
+
 class Player(Creature):
     is_player = True
-
-    def __init__(self):
-        super(Player, self).__init__()
-
-        self.health = Meter(10)
-
-    def name(self):
-        return "you"
 
     def act(self):
         """Players don't have AI!  If this gets called something is wrong."""
         # XXX it would be terribly clever if this returned control to the UI event loop
         raise TypeError("Players have no AI; they have real I instead")
 
-class Newt(Creature):
-    pass
+newt = Creature(max_health=1, name="newt")
+player = Creature(max_health=10, name="you")
 
 
 ### ITEMS
-class Item(Thing):
-    def can_be_moved_onto(self, actor):
-        return True
+class Item(ThingType): pass
 
-class Potion(Item):
-    def name(self):
-        return "potion"
+potion = Item(name="potion")
+potion.action_effects[action.UseItem] = effect.Heal()

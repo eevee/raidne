@@ -1,39 +1,29 @@
+# XXX write docstring.  these should all be SIMPLE; actual logic and whatever
+# should be in effects
+
+from raidne import exceptions
+from raidne.game import effect
 from raidne.util import Position
 
-class Damage(object):
-    """Some amount of damage to be inflicted."""
+class Action(object):
+    pass
 
-    def __init__(self, amount):
-        self.amount = amount
-
-
-class MeleeAttack(object):
+class MeleeAttack(Action):
     cost = 24  # TODO
 
     def __init__(self, actor, target):
         self.actor = actor
         self.target = target
+        # XXX this should probably take a direction/aim/range/whatever, not a particular thing
 
     def __call__(self, ui_proxy, dungeon):
         # XXX assert they are both on the floor and within melee distance of each other
 
         # Calculate attacker's damage
-        damage = Damage(self.actor.attack_power)
+        # XXX this isn't a calculation  :)
+        damage = effect.MeleeDamage(self.actor.attack_power)
+        yield damage, self.target
 
-        # Inform the player that this happened
-        ui_proxy.message("{0} attacks {1}!!".format(self.actor.name(), self.target.name()))
-
-        # And inflict!
-        self.target.health.modify(- damage.amount)
-
-        # Handle death.
-        # XXX this should probably go in the creature's damage handler.
-        # XXX we need a real event queue to put this on
-        # XXX looks like thing types can't use the python class system.  type needs to be an attr
-        if self.target.health.current == 0:
-            # XXX meters should probably support bool or something
-            ui_proxy.message("{0} dies".format(self.target.name()))
-            dungeon.current_floor.remove(self.target)
 
 class Walk(object):
     cost = 24  # TODO
@@ -44,12 +34,20 @@ class Walk(object):
 
     # XXX: is passing the entire toplevel interface down here such a good idea?
     def __call__(self, ui_proxy, dungeon):
-        try:
-            new_tile = dungeon.current_floor.move(self.actor, self.direction)
-        except exceptions.CollisionError:
-            # XXX this shouldn't happen for monsters
-            # XXX should "is this possible" be separate from actually doing it?
-            return
+        # Check that the target tile accepts our movement
+        # TODO this needs to go somewhere else, eventually, to check teleports etc
+        old_position = dungeon.current_floor.find(self.actor).position
+        new_position = self.direction.relative_to(old_position)
+        for thing in dungeon.current_floor.tile(new_position):
+            if thing.solid:
+                # XXX "cancel" the action, or just return?
+                # XXX need to do something to avoid the action cost at least
+                return
+                raise exceptions.CollisionError
+
+
+        dungeon.current_floor.move(self.actor, self.direction)
+        new_time = dungeon.current_floor.tile(new_position)
 
         # this message needs to fire when the player moves at *all*; how to do
         # this.  hook methods?
@@ -57,7 +55,7 @@ class Walk(object):
             items = new_tile.items
             if items:
                 ui_proxy.message(u"You see here: {0}.".format(
-                    u','.join(item.name() for item in items)))
+                    u','.join(item.name for item in items)))
 
 
 class Descend(object):
@@ -106,12 +104,40 @@ class PickUp(object):
 
         self.actor.inventory.append(self.target)
         dungeon.current_floor.remove(self.target)
-        # TODO this message should specify the actor, obv.
-        ui_proxy.message("Got {0}.".format(self.target.name()))
+        ui_proxy.message("{0} picked up {1}".format(self.actor.name, self.target.name))
 
         #items = tile.items
         #self.player.inventory.extend(items)
         #for item in items:
         #    self.current_floor.remove(item)
-        #    ui.message("Got {0}.".format(item.name()))
+        #    ui.message("Got {0}.".format(item.name))
+
+
+class UseItem(Action):
+    def __init__(self, actor, target):
+        self.actor = actor
+        self.target = target
+
+    def __call__(self, ui_proxy, dungeon):
+        yield self.target._type.action_effects[UseItem], self.actor
+
+class Throw(Action):
+    def __init__(self, actor, obj, target):
+        # TODO
+        pass
+
+    def __call__(self, proxy):
+        try:
+            # XXX i guess this bit should actually be in the caller
+            target.handle_action(self)
+
+            throw_effect = obj.throw_effect()
+            # this runs all the effect hooks that apply to the throw_effect
+            target.handle_effect(throw_effect)
+            # this actually invokes throw_effect
+            throw_effect(target)
+
+        except CancelEvent:
+            pass
+
 

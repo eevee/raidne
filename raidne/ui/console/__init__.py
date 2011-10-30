@@ -5,7 +5,7 @@ import urwid
 from urwid.main_loop import ExitMainLoop
 from urwid.util import apply_target_encoding
 
-from raidne.game import actions
+from raidne.game import action
 from raidne.game.dungeon import Dungeon
 from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
 from raidne.util import Offset, Position
@@ -76,17 +76,21 @@ class MeterWidget(urwid.Text):
 
 class InventoryWidget(urwid.ListBox):
 
-    def __init__(self):
+    def __init__(self, player):
         # Create ourselves a walker
         walker = urwid.SimpleListWalker([])
         urwid.ListBox.__init__(self, walker)
+
+        self.action = None
+
+        self.player = player
 
     def set_inventory(self, inventory):
         walker = self.body
         walker[:] = []  # Empty in-place
 
         for item in inventory:
-            widget = InventoryItemWidget(item.name())
+            widget = InventoryItemWidget(item)
             # XXX maybe the map should be part of the item widget?
             wrapped = urwid.AttrMap(widget, 'inventory-default', 'inventory-selected')
             walker.append(wrapped)
@@ -94,11 +98,19 @@ class InventoryWidget(urwid.ListBox):
     def keypress(self, size, key):
         if key == 'esc':
             raise urwid.ExitMainLoop()
+        elif key == 'enter':
+            # TODO...
+            self.action = action.UseItem(self.player, self.body[0]._original_widget.item)
+            raise urwid.ExitMainLoop()
         else:
             return urwid.ListBox.keypress(self, size, key)
 
 class InventoryItemWidget(urwid.Text):
     _selectable = True
+
+    def __init__(self, item):
+        self.item = item
+        super(InventoryItemWidget, self).__init__(item.name)
 
     def keypress(self, size, key):
         return key
@@ -116,10 +128,10 @@ class ConsoleProxy(object):
         self.interface = interface
 
     def message(self, message):
-        self.interface.push_message(message)
+        return self.interface.push_message(message)
 
     def show_inventory(self):
-        self.interface.show_inventory()
+        return self.interface.show_inventory()
 
 
 class MainWidget(urwid.WidgetWrap):
@@ -174,16 +186,18 @@ class MainWidget(urwid.WidgetWrap):
         elif key == 'right':
             self._act_in_direction(Offset(drow=0, dcol=+1))
         elif key == '>':
-            self.dungeon.player_command(self.interface_proxy, actions.Descend(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).architecture))
+            self.dungeon.player_command(self.interface_proxy, action.Descend(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).architecture))
         elif key == '.':
             pass
         elif key == ',':
             # XXX broken
-            self.dungeon.player_command(self.interface_proxy, actions.PickUp(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).items[0]))
+            self.dungeon.player_command(self.interface_proxy, action.PickUp(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).items[0]))
         elif key == 'i':
             # XXX why does this go through the proxy?
             # TODO i don't think this takes a turn, since it isn't really an action
-            self.interface_proxy.show_inventory()
+            command = self.interface_proxy.show_inventory()
+            if command:
+                self.dungeon.player_command(self.interface_proxy, command)
         else:
             return key
 
@@ -218,11 +232,11 @@ class MainWidget(urwid.WidgetWrap):
                 self.dungeon.current_floor.find(self.dungeon.player).position))
 
         if target_tile.creature:
-            action = actions.MeleeAttack(self.dungeon.player, target_tile.creature)
+            command = action.MeleeAttack(self.dungeon.player, target_tile.creature)
         else:
-            action = actions.Walk(self.dungeon.player, direction)
+            command = action.Walk(self.dungeon.player, direction)
 
-        return self.dungeon.player_command(self.interface_proxy, action)
+        return self.dungeon.player_command(self.interface_proxy, command)
 
 
 class RaidneInterface(object):
@@ -252,17 +266,22 @@ class RaidneInterface(object):
         # End
         print "Bye!"
 
+    # TODO should these two be part of the main widget?  what is the point of
+    # this object, really, if all the keypress handling is in the main widget?
+    # does that mean it should pass keypresses up here?
     def show_inventory(self):
         inv = self.dungeon.player.inventory
         if not inv:
             self.push_message("You aren't carrying anything.")
             return
 
-        widget = InventoryWidget()
+        widget = InventoryWidget(self.dungeon.player)
         widget.set_inventory(inv)
 
         # Run the inventory dialog within its own little event loop
         urwid.MainLoop(widget, screen=self.loop.screen).run()
+
+        return widget.action
 
 
     def push_message(self, message):

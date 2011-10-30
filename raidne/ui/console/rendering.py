@@ -33,41 +33,25 @@ PALETTE_ENTRIES = [
 ]
 
 
-### Fallback
+def rendering_for(thing):
+    if thing.isa(things.Architecture):
+        if thing.isa(things.floor):
+            return u'·', 'floor'
+        if thing.isa(things.wall):
+            return u'▒', 'default'
+        if thing.isa(things.staircase_down):
+            return u'▙', 'default'
+        if thing.isa(things.trap):
+            return u'X', 'default'
 
-@strict_multimethod(things.Thing)
-def rendering_for(obj):
+    elif thing.isa(things.Creature):
+        if thing.isa(things.player):
+            return u'☻', 'player'
+        if thing.isa(things.newt):
+            return u':', 'newt'
+
+    elif thing.isa(things.Item):
+        if thing.isa(things.potion):
+            return u'ᵭ', 'potion'
+
     return u'‽', 'default'
-
-
-### Architecture
-
-@strict_multimethod(things.Floor)
-def rendering_for(obj):
-    return u'·', 'floor'
-
-@strict_multimethod(things.Wall)
-def rendering_for(obj):
-    return u'▒', 'default'
-
-@strict_multimethod(things.StaircaseDown)
-def rendering_for(obj):
-    return u'▙', 'default'
-
-
-### Creatures
-
-@strict_multimethod(things.Player)
-def rendering_for(obj):
-    return u'☻', 'player'
-
-@strict_multimethod(things.Newt)
-def rendering_for(obj):
-    return u':', 'newt'
-
-
-### Items
-
-@strict_multimethod(things.Potion)
-def rendering_for(obj):
-    return u'ᵭ', 'potion'

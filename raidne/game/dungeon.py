@@ -32,7 +32,7 @@ class Dungeon(object):
 
         # Create the player object and inject it into the first floor
         # XXX grody
-        self.player = things.Player()
+        self.player = things.Thing(type=things.player)
         self.current_floor.put(self.player, Position(3, 3))
 
     def do_monster_turns(self, proxy):
@@ -51,9 +51,12 @@ class Dungeon(object):
 
             # XXX probably want to pass a dungeon proxy object or something
             action = tile.creature.think(self, self.current_floor)
-            if action:
-                action(proxy, self)
+            if not action:
+                # we're done here
+                return
 
+            for effect, target in action(proxy, self) or []:
+                effect(proxy, self, action.actor, None, target)
 
             # XXX this on the other hand is definitely not right
             if self.player.health.current == 0:
@@ -63,4 +66,5 @@ class Dungeon(object):
         """Call me when the player performs an action."""
         assert action.actor == self.player
 
-        action(proxy, self)
+        for effect, target in action(proxy, self) or []:
+            effect(proxy, self, action.actor, None, target)

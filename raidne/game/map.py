@@ -82,20 +82,20 @@ class Map(object):
         assert position in self.size
         # XXX assert thing not already on the map
         # XXX possibly move the collision stuff here, instead of in move()?
-        if isinstance(thing, things.Creature):
+        if thing.isa(things.Creature):
             assert position not in self._critters
             self._critters[position] = thing
-        elif isinstance(thing, things.Item):
+        elif thing.isa(things.Item):
             self._items[position].append(thing)
         else:
             raise ValueError("Don't know what that thing is")
 
     def remove(self, thing):
         position = self.find(thing).position
-        if isinstance(thing, things.Creature):
+        if thing.isa(things.Creature):
             assert self._critters[position] is thing
             del self._critters[position]
-        elif isinstance(thing, things.Item):
+        elif thing.isa(things.Item):
             self._items[position].remove(thing)
         else:
             raise ValueError("Don't know what that thing is")
@@ -123,23 +123,9 @@ class Map(object):
         if old_position == new_position:
             return
 
-        # Check that the target tile accepts our movement
-        # TODO split this out
-        for thing in self.tile(new_position):
-            if not thing.can_be_moved_onto(actor):
-                raise exceptions.CollisionError()
-
         # Perform the move
         self.remove(actor)
         self.put(actor, new_position)
-
-        # Let the new home target react
-        # XXX The more I think about this, the more I think it should be the
-        # caller's responsibility
-        #for thing in self._things[new_position]
-        #    thing.trigger_moved_onto(actor)  # this is wrong anyway; it'll trigger the actor on itself
-
-        return self.tile(new_position)
 
 class Tile(object):
     """Transient class representing the contents of a single tile.  Meant for
