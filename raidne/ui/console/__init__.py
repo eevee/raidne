@@ -75,6 +75,31 @@ class MeterWidget(urwid.Text):
     pass
 
 
+### Message pane
+
+class MessagesWidget(urwid.ListBox):
+    def __init__(self, dungeon):
+        self._dungeon = dungeon
+        self.__super.__init__(urwid.SimpleListWalker([]))
+        # TODO may want to write a custom list walker class
+
+    def update(self):
+        new_messages = self._dungeon.new_messages()
+        if not new_messages:
+            # Don't nuke messages until there are new ones
+            return
+
+        for subwidget in self.body:
+            subwidget.set_text(
+                ('message-old', subwidget.text))
+
+        for message in new_messages:
+            self.body.append(
+                urwid.Text(('message-fresh', message)))
+
+        self.set_focus(len(self.body) - 1)
+
+
 ### Inventory
 
 class InventoryWidget(urwid.ListBox):
@@ -147,10 +172,7 @@ class MainWidget(urwid.PopUpLauncher):
             valign='top', height=None,
         )
 
-        self.message_pane = urwid.ListBox(
-            urwid.SimpleListWalker([])
-        )
-
+        self.message_pane = MessagesWidget(dungeon)
         self.player_status_pane = PlayerStatusWidget(self.dungeon.player)
 
         # Arrange into two rows, the top of which is two columns
@@ -161,8 +183,7 @@ class MainWidget(urwid.PopUpLauncher):
             [top, ('fixed', 10, self.message_pane)],
         )
 
-        # TODO do i need to be here
-        self.update_message_pane()
+        self.update_widgets()
 
         self.__super.__init__(main_widget)
 
@@ -191,23 +212,15 @@ class MainWidget(urwid.PopUpLauncher):
         else:
             return key
 
-        # TODO: _invalidate() should probably be decided by the dungeon floor.
-        # could use some more finely-tuned form of repainting
-        self._invalidate()
-
         # TODO the current idea is that this will just run through everyone who
         # needs to take their turn before the player -- thus returning
         # immediately if the player didn't just do something that consumed a
         # turn.  it'll need to be more complex later for animating, long
         # events, other delays, whatever.
+        # TODO if that's the case, how do we update between monster turns?
         self.dungeon.do_monster_turns()
 
-        # Update the display
-        # TODO this is max inefficient
-        self._invalidate()
-        self.playing_field._invalidate()
-        self.player_status_pane.update()
-        self.update_message_pane()
+        self.update_widgets()
 
     def _act_in_direction(self, direction):
         """Figure out the right action to perform when the player tries to move
@@ -229,24 +242,18 @@ class MainWidget(urwid.PopUpLauncher):
         return self.dungeon.player_command(command)
 
 
-    def update_message_pane(self):
-        # XXX move most of this logic to the message pane itelf dood
-        new_messages = self.dungeon.new_messages()
-        if not new_messages:
-            # Don't nuke messages until there are new ones?
-            return
+    def update_widgets(self):
+        # Update the display
+        # TODO this is max inefficient
+        # TODO: _invalidate() should probably be decided by the dungeon floor.
+        # could use some more finely-tuned form of repainting
+        self.playing_field._invalidate()
 
-        walker = self.message_pane.body
+        self.message_pane.update()
 
-        for subwidget in walker:
-            subwidget.set_text(
-                ('message-old', subwidget.text))
+        self.player_status_pane.update()
 
-        for message in new_messages:
-            walker.append(
-                urwid.Text(('message-fresh', message)))
-
-        self.message_pane.set_focus(len(walker) - 1)
+        #self._invalidate()
 
 
     def create_pop_up(self):
@@ -263,13 +270,8 @@ class MainWidget(urwid.PopUpLauncher):
             self.close_pop_up()
             if command:
                 self.dungeon.player_command(command)
+            self.update_widgets()
 
-            # XXX i am copy-pasted from above and suck
-            self._invalidate()
-            self.playing_field._invalidate()
-            self.player_status_pane.update()
-            self.update_message_pane()
-            # TODO: put message updating in widget.  then work out how to do the whole yielding thing, somehow.
         urwid.connect_signal(widget, 'return', close)
 
         return widget
