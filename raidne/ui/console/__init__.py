@@ -52,7 +52,9 @@ class PlayingFieldWidget(urwid.FixedWidget):
 ### Player status, on the right side
 
 class PlayerStatusWidget(urwid.Pile):
-    def __init__(self):
+    def __init__(self, player):
+        self._player = player
+
         widgets = []
 
         # TODO use a widget for rendering meters here
@@ -63,8 +65,9 @@ class PlayerStatusWidget(urwid.Pile):
 
         urwid.Pile.__init__(self, widgets)
 
-    def update(self, player):
-        self.health_widget.set_text("HP {0}".format(player.health.current))
+    def update(self):
+        # XXX yeah do this for real before committing bro
+        self.health_widget.set_text("HP {0}".format(self._player.health.current))
         # TODO this should detect whether anything changed and call _invalidate
         # on itself only if necessary (or even just the child widgets?)
 
@@ -75,6 +78,7 @@ class MeterWidget(urwid.Text):
 ### Inventory
 
 class InventoryWidget(urwid.ListBox):
+    signals = ['return']
 
     def __init__(self, player):
         # Create ourselves a walker
@@ -97,13 +101,17 @@ class InventoryWidget(urwid.ListBox):
 
     def keypress(self, size, key):
         if key == 'esc':
-            raise urwid.ExitMainLoop()
+            self.close()
         elif key == 'enter':
             # TODO...
-            self.action = action.UseItem(self.player, self.body[0]._original_widget.item)
-            raise urwid.ExitMainLoop()
+            self.close(action.UseItem(self.player, self.body[0]._original_widget.item))
         else:
             return urwid.ListBox.keypress(self, size, key)
+
+    def close(self, command=None):
+        # TODO a more generic version of this may want to return an item
+        # instead
+        self._emit('return', command)
 
 class InventoryItemWidget(urwid.Text):
     _selectable = True
@@ -118,23 +126,7 @@ class InventoryItemWidget(urwid.Text):
 
 ### Main stuff
 
-class ConsoleProxy(object):
-    """This is the `ui` object passed to a lot of DungeonFloor methods.  It
-    allows game logic to trigger particular behaviors in the UI, while letting
-    the UI decide how to actually implement them.
-    """
-
-    def __init__(self, interface):
-        self.interface = interface
-
-    def message(self, message):
-        return self.interface.push_message(message)
-
-    def show_inventory(self):
-        return self.interface.show_inventory()
-
-
-class MainWidget(urwid.WidgetWrap):
+class MainWidget(urwid.PopUpLauncher):
     """The main game window."""
     # +-------------+-------+
     # |             | stats |
@@ -145,9 +137,8 @@ class MainWidget(urwid.WidgetWrap):
     # +---------------------+
     _selectable = True
 
-    def __init__(self, dungeon, proxy):
+    def __init__(self, dungeon):
         self.dungeon = dungeon
-        self.interface_proxy = proxy
 
         self.playing_field = PlayingFieldWidget(dungeon)
         play_area = urwid.Overlay(
@@ -160,7 +151,7 @@ class MainWidget(urwid.WidgetWrap):
             urwid.SimpleListWalker([])
         )
 
-        self.player_status_pane = PlayerStatusWidget()
+        self.player_status_pane = PlayerStatusWidget(self.dungeon.player)
 
         # Arrange into two rows, the top of which is two columns
         top = urwid.Columns(
@@ -170,8 +161,10 @@ class MainWidget(urwid.WidgetWrap):
             [top, ('fixed', 10, self.message_pane)],
         )
 
-        # Call the superclass's actual constructor, which accepts a wrappee
-        urwid.WidgetWrap.__init__(self, w=main_widget)
+        # TODO do i need to be here
+        self.update_message_pane()
+
+        self.__super.__init__(main_widget)
 
     def keypress(self, size, key):
         if key == 'q':
@@ -186,18 +179,15 @@ class MainWidget(urwid.WidgetWrap):
         elif key == 'right':
             self._act_in_direction(Offset(drow=0, dcol=+1))
         elif key == '>':
-            self.dungeon.player_command(self.interface_proxy, action.Descend(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).architecture))
+            self.dungeon.player_command(action.Descend(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).architecture))
         elif key == '.':
             pass
         elif key == ',':
             # XXX broken
-            self.dungeon.player_command(self.interface_proxy, action.PickUp(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).items[0]))
+            self.dungeon.player_command(action.PickUp(self.dungeon.player, self.dungeon.current_floor.find(self.dungeon.player).items[0]))
         elif key == 'i':
-            # XXX why does this go through the proxy?
             # TODO i don't think this takes a turn, since it isn't really an action
-            command = self.interface_proxy.show_inventory()
-            if command:
-                self.dungeon.player_command(self.interface_proxy, command)
+            command = self.open_pop_up()
         else:
             return key
 
@@ -210,14 +200,14 @@ class MainWidget(urwid.WidgetWrap):
         # immediately if the player didn't just do something that consumed a
         # turn.  it'll need to be more complex later for animating, long
         # events, other delays, whatever.
-        self.dungeon.do_monster_turns(self.interface_proxy)
+        self.dungeon.do_monster_turns()
 
         # Update the display
         # TODO this is max inefficient
         self._invalidate()
         self.playing_field._invalidate()
-
-        self.player_status_pane.update(self.dungeon.player)
+        self.player_status_pane.update()
+        self.update_message_pane()
 
     def _act_in_direction(self, direction):
         """Figure out the right action to perform when the player tries to move
@@ -236,7 +226,56 @@ class MainWidget(urwid.WidgetWrap):
         else:
             command = action.Walk(self.dungeon.player, direction)
 
-        return self.dungeon.player_command(self.interface_proxy, command)
+        return self.dungeon.player_command(command)
+
+
+    def update_message_pane(self):
+        # XXX move most of this logic to the message pane itelf dood
+        new_messages = self.dungeon.new_messages()
+        if not new_messages:
+            # Don't nuke messages until there are new ones?
+            return
+
+        walker = self.message_pane.body
+
+        for subwidget in walker:
+            subwidget.set_text(
+                ('message-old', subwidget.text))
+
+        for message in new_messages:
+            walker.append(
+                urwid.Text(('message-fresh', message)))
+
+        self.message_pane.set_focus(len(walker) - 1)
+
+
+    def create_pop_up(self):
+        inv = self.dungeon.player.inventory
+        if not inv:
+            # XXX gross
+            self.dungeon.message("You aren't carrying anything.")
+            return
+
+        widget = InventoryWidget(self.dungeon.player)
+        widget.set_inventory(inv)
+
+        def close(widget, command):
+            self.close_pop_up()
+            if command:
+                self.dungeon.player_command(command)
+
+            # XXX i am copy-pasted from above and suck
+            self._invalidate()
+            self.playing_field._invalidate()
+            self.player_status_pane.update()
+            self.update_message_pane()
+            # TODO: put message updating in widget.  then work out how to do the whole yielding thing, somehow.
+        urwid.connect_signal(widget, 'return', close)
+
+        return widget
+
+    def get_pop_up_parameters(self):
+        return dict(left=1, top=1, overlay_width=20, overlay_height=8)
 
 
 class RaidneInterface(object):
@@ -245,56 +284,24 @@ class RaidneInterface(object):
         self.init_display()
 
     def init_display(self):
-        self.proxy = ConsoleProxy(self)
-
         self.dungeon = Dungeon()
         # FIXME this is a circular reference.  can urwid objects find their own containers?
-        self.main_widget = MainWidget(self.dungeon, self.proxy)
+        self.main_widget = MainWidget(self.dungeon)
 
     def run(self):
-        self.loop = urwid.MainLoop(self.main_widget)
+        self.loop = urwid.MainLoop(self.main_widget, pop_ups=True)
 
         # XXX what happens if the terminal doesn't actually support 256 colors?
-        # TODO create this screen separately, since multiple loops use it
         self.loop.screen.set_terminal_properties(colors=256)
         self.loop.screen.register_palette(PALETTE_ENTRIES)
 
         # Game loop
-        self.push_message('Welcome to raidne!')
+        self.dungeon.message('Welcome to raidne!')
         self.loop.run()
 
         # End
         print "Bye!"
 
-    # TODO should these two be part of the main widget?  what is the point of
-    # this object, really, if all the keypress handling is in the main widget?
-    # does that mean it should pass keypresses up here?
-    def show_inventory(self):
-        inv = self.dungeon.player.inventory
-        if not inv:
-            self.push_message("You aren't carrying anything.")
-            return
-
-        widget = InventoryWidget(self.dungeon.player)
-        widget.set_inventory(inv)
-
-        # Run the inventory dialog within its own little event loop
-        urwid.MainLoop(widget, screen=self.loop.screen).run()
-
-        return widget.action
-
-
-    def push_message(self, message):
-        # XXX move most of this logic to the message pane itelf dood
-        walker = self.main_widget.message_pane.body
-        if walker:
-            last_message = walker[-1]
-            last_message.set_text(
-                ('message-old', last_message.text))
-
-        walker.append(
-            urwid.Text(('message-fresh', message)))
-        self.main_widget.message_pane.set_focus(len(walker) - 1)
 
 def main():
     RaidneInterface().run()

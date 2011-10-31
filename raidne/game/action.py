@@ -16,7 +16,7 @@ class MeleeAttack(Action):
         self.target = target
         # XXX this should probably take a direction/aim/range/whatever, not a particular thing
 
-    def __call__(self, ui_proxy, dungeon):
+    def __call__(self, dungeon):
         # XXX assert they are both on the floor and within melee distance of each other
 
         # Calculate attacker's damage
@@ -33,7 +33,7 @@ class Walk(object):
         self.direction = direction
 
     # XXX: is passing the entire toplevel interface down here such a good idea?
-    def __call__(self, ui_proxy, dungeon):
+    def __call__(self, dungeon):
         # Check that the target tile accepts our movement
         # TODO this needs to go somewhere else, eventually, to check teleports etc
         old_position = dungeon.current_floor.find(self.actor).position
@@ -54,7 +54,7 @@ class Walk(object):
         if self.actor.is_player:
             items = new_tile.items
             if items:
-                ui_proxy.message(u"You see here: {0}.".format(
+                dungeon.message(u"You see here: {0}.".format(
                     u','.join(item.name for item in items)))
 
 
@@ -70,11 +70,11 @@ class Descend(object):
         self.actor = actor
         self.target = target
 
-    def __call__(self, ui_proxy, dungeon):
+    def __call__(self, dungeon):
         map = dungeon.current_floor
         # XXX this is just all kinds of wrong.
         if self.actor == dungeon.player and not map.find(self.actor).architecture.__class__.__name__ == 'StaircaseDown':
-            ui_proxy.message("You can't go down here.")
+            dungeon.message("You can't go down here.")
             return
 
         map.remove(self.actor)
@@ -94,7 +94,7 @@ class PickUp(object):
         self.actor = actor
         self.target = target
 
-    def __call__(self, ui_proxy, dungeon):
+    def __call__(self, dungeon):
         actor_tile = dungeon.current_floor.find(self.actor)
         target_tile = dungeon.current_floor.find(self.target)
 
@@ -104,7 +104,7 @@ class PickUp(object):
 
         self.actor.inventory.append(self.target)
         dungeon.current_floor.remove(self.target)
-        ui_proxy.message("{0} picked up {1}".format(self.actor.name, self.target.name))
+        dungeon.message("{0} picked up {1}".format(self.actor.name, self.target.name))
 
         #items = tile.items
         #self.player.inventory.extend(items)
@@ -118,7 +118,7 @@ class UseItem(Action):
         self.actor = actor
         self.target = target
 
-    def __call__(self, ui_proxy, dungeon):
+    def __call__(self, dungeon):
         yield self.target._type.action_effects[UseItem], self.actor
 
 class Throw(Action):
@@ -126,7 +126,7 @@ class Throw(Action):
         # TODO
         pass
 
-    def __call__(self, proxy):
+    def __call__(self):
         try:
             # XXX i guess this bit should actually be in the caller
             target.handle_action(self)

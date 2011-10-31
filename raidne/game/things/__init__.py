@@ -86,7 +86,7 @@ class Thing(object):
         delta = map.distance_between(self, player)
         # TODO if delta in attack_range:...
         if delta.drow**2 + delta.dcol**2 <= 1:
-            # XXX move this into the dungeon, dungeon proxy, whatever
+            # XXX move this into the dungeon, whatever
             return action.MeleeAttack(self, player)
 
         # 2. Is the player visible?  If so, run straight at him like a lunatic.
