@@ -9,7 +9,7 @@ import itertools
 
 ### Dealing with dimensions
 
-class Size(namedtuple('Size', ['rows', 'cols'])):
+class Size(namedtuple('Size', ('rows', 'cols'))):
     """The size of a dungeon floor or other rectangular area."""
     __slots__ = ()
 
@@ -26,10 +26,10 @@ class Size(namedtuple('Size', ['rows', 'cols'])):
             position.row >= 0 and
             position.col >= 0 and
             position.row < self.rows and
-            position.row < self.cols
+            position.col < self.cols
         )
 
-class Position(namedtuple('Position', ['row', 'col'])):
+class Position(namedtuple('Position', ('row', 'col'))):
     """Coordinate of a dungeon floor."""
     __slots__ = ()
 

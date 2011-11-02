@@ -2,8 +2,9 @@
 """NetHack-style console interface."""
 
 import urwid
+import urwid.util
 from urwid.main_loop import ExitMainLoop
-from urwid.util import apply_target_encoding
+from urwid.util import apply_target_encoding, rle_append_modify, rle_len
 
 from raidne.game import action
 from raidne.game.dungeon import Dungeon
@@ -11,14 +12,23 @@ from raidne.ui.console.rendering import PALETTE_ENTRIES, rendering_for
 from raidne.util import Offset, Position
 
 # TODO probably needs to be scrollable -- in which case the SolidFill overlay below can go away
-class PlayingFieldWidget(urwid.FixedWidget):
+class PlayingFieldWidget(urwid.BoxWidget):
     def __init__(self, dungeon):
         # XXX should this just accept a map, even?
         self.dungeon = dungeon
 
-    def pack(self, size, focus=False):
-        # Returns the size of the fixed playing field.
-        return self.dungeon.current_floor.size
+    #def pack(self, size, focus=False):
+    #    # Returns the size of the fixed playing field.
+    #    #return self.dungeon.current_floor.size
+    #    return size
+
+    empty_char = u' '
+
+    def _render_padding(self, width, chars, attrs):
+        encoded_char = (self.empty_char * width).encode(urwid.util._target_encoding)
+        chars.append(encoded_char)
+        rle_append_modify(attrs, (None, len(encoded_char)))
+
 
     def render(self, size, focus=False):
         # Build a view of the architecture
@@ -26,24 +36,47 @@ class PlayingFieldWidget(urwid.FixedWidget):
         attrs = []
         map = self.dungeon.current_floor
 
-        for row in xrange(map.size.rows):
+        maxcol, maxrow = size
+        top, left = 3, 3
+
+        # TODO actually compute the offset more cleverly here  :)
+        # TODO optimize me more??  somehow?
+
+        for screen_row in xrange(maxrow):
             viewport_chars = []
             attr_row = []
+
+            if screen_row < top or screen_row > map.size.rows + top:
+                # Outside the bounds of the map; just show blank space
+                self._render_padding(maxcol, chars=viewport_chars, attrs=attr_row)
+
+                viewport.append(''.join(viewport_chars))
+                attrs.append(attr_row)
+                continue
+
+            # Blank space for the left padding
+            encoded_char = (self.empty_char * left).encode(urwid.util._target_encoding)
+            viewport_chars.append(encoded_char)
+            rle_append_modify(attr_row, (None, len(encoded_char)))
+
             for col in xrange(map.size.cols):
-                topmost_thing = map.tile(Position(row, col)).topmost
-                char, palette = rendering_for(topmost_thing)
+                pos = Position(screen_row - top, col)
+                char, palette = rendering_for(map.tile(pos).topmost)
 
                 # XXX this is getting way inefficient man; surely a better approach
-                # TODO pass the rle to TextCanvas
-                encoded_char, rle = apply_target_encoding(char)
+                encoded_char = char.encode(urwid.util._target_encoding)
                 viewport_chars.append(encoded_char)
-                attr_row.append((palette, len(encoded_char)))
+                rle_append_modify(attr_row, (palette, len(encoded_char)))
+
+            # Blank space for the right padding
+            self._render_padding((maxcol - map.size.cols - left),
+                chars=viewport_chars, attrs=attr_row)
 
             viewport.append(''.join(viewport_chars))
             attrs.append(attr_row)
 
-        # Needs to be wrapped in CompositeCanvas for overlaying to work
-        return urwid.CompositeCanvas(urwid.TextCanvas(viewport, attr=attrs))
+        map_canv = urwid.TextCanvas(viewport, attr=attrs)
+        return map_canv
 
     def mouse_event(self, *args, **kwargs):
         return True
@@ -161,6 +194,7 @@ class MainWidget(urwid.PopUpLauncher):
     # | messages area       |
     # +---------------------+
     _selectable = True
+    _sizing = 'box'
 
     def __init__(self, dungeon):
         self.dungeon = dungeon
@@ -171,17 +205,20 @@ class MainWidget(urwid.PopUpLauncher):
             align='left', width=None,
             valign='top', height=None,
         )
+        play_area = self.playing_field
 
         self.message_pane = MessagesWidget(dungeon)
         self.player_status_pane = PlayerStatusWidget(self.dungeon.player)
 
         # Arrange into two rows, the top of which is two columns
-        top = urwid.Columns(
-            [play_area, ('fixed', 40, self.player_status_pane)],
-        )
-        main_widget = urwid.Pile(
-            [top, ('fixed', 10, self.message_pane)],
-        )
+        top = urwid.Columns([
+            play_area,
+            ('fixed', 40, self.player_status_pane)
+        ])
+        main_widget = urwid.Pile([
+            top,
+            ('fixed', 10, self.message_pane)
+        ])
 
         self.update_widgets()
 
@@ -287,6 +324,7 @@ class RaidneInterface(object):
 
     def init_display(self):
         self.dungeon = Dungeon()
+        self.dungeon.message('Welcome to raidne!')
         # FIXME this is a circular reference.  can urwid objects find their own containers?
         self.main_widget = MainWidget(self.dungeon)
 
@@ -298,7 +336,6 @@ class RaidneInterface(object):
         self.loop.screen.register_palette(PALETTE_ENTRIES)
 
         # Game loop
-        self.dungeon.message('Welcome to raidne!')
         self.loop.run()
 
         # End

@@ -1,6 +1,6 @@
 """Fairly dumb representation of dungeon geometry."""
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 import raidne.exceptions as exceptions
 from raidne.game import things
@@ -127,13 +127,11 @@ class Map(object):
         self.remove(actor)
         self.put(actor, new_position)
 
-class Tile(object):
+class Tile(namedtuple('Tile', ('map', 'position'))):
     """Transient class representing the contents of a single tile.  Meant for
     mucking about with a single point on the map more easily.
     """
-    def __init__(self, map, position):
-        self.map = map
-        self.position = position
+    __slots__ = ()
 
     def __iter__(self):
         """Iterates over things here, from top to bottom, including the

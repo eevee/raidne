@@ -34,8 +34,8 @@ class RoomFractor(Fractor):
         return [[None] * width for _ in xrange(height)]
 
     def generate(self):
-        canvas = self._scrap_canvas(height=20, width=30)
-        self.draw_room(canvas, top=0, bottom=19, left=0, right=29)
+        canvas = self._scrap_canvas(height=80, width=30)
+        self.draw_room(canvas, top=0, bottom=79, left=0, right=29)
 
         # Place the stairs
         canvas[10][10] = things.Thing(type=things.staircase_down)
