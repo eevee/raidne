@@ -25,6 +25,8 @@ class PlayingFieldWidget(urwid.BoxWidget):
     empty_char = u' '
 
     def _render_padding(self, width, chars, attrs):
+        if not width:
+            return
         encoded_char = (self.empty_char * width).encode(urwid.util._target_encoding)
         chars.append(encoded_char)
         rle_append_modify(attrs, (None, len(encoded_char)))
@@ -37,7 +39,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
         map = self.dungeon.current_floor
 
         maxcol, maxrow = size
-        top, left = 3, 3
+        top, left = 0, 0
 
         # TODO actually compute the offset more cleverly here  :)
         # TODO optimize me more??  somehow?
@@ -46,7 +48,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
             viewport_chars = []
             attr_row = []
 
-            if screen_row < top or screen_row > map.size.rows + top:
+            if screen_row < top or screen_row >= map.size.rows + top:
                 # Outside the bounds of the map; just show blank space
                 self._render_padding(maxcol, chars=viewport_chars, attrs=attr_row)
 
@@ -55,9 +57,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
                 continue
 
             # Blank space for the left padding
-            encoded_char = (self.empty_char * left).encode(urwid.util._target_encoding)
-            viewport_chars.append(encoded_char)
-            rle_append_modify(attr_row, (None, len(encoded_char)))
+            self._render_padding(left, chars=viewport_chars, attrs=attr_row)
 
             for col in xrange(map.size.cols):
                 pos = Position(screen_row - top, col)

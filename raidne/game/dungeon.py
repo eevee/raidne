@@ -4,7 +4,7 @@ the interaction between the player and the game world.
 """
 from raidne import exceptions
 from raidne.game import things
-from raidne.game.fractor import RoomFractor
+from raidne.game.fractor import BSPFractor, RoomFractor
 from raidne.util import Offset, Position
 
 class Dungeon(object):
@@ -19,7 +19,7 @@ class Dungeon(object):
         # remember their connections as weakrefs, or just identifiers that this
         # object looks up?
 
-        fractor = RoomFractor()
+        fractor = BSPFractor()
         self.floors = []
         self.floors.append(fractor.generate())
         self.floors.append(fractor.generate())

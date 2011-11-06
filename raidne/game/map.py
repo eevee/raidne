@@ -19,8 +19,8 @@ class Map(object):
     @classmethod
     def from_fractor_canvas(cls, canvas):
         self = cls(_internal_call=True)
-        self.size = Size(
-            rows=len(canvas), cols=len(canvas[0]))
+        self.size = Size(rows=canvas.box.height, cols=canvas.box.width)
+        #rows=len(canvas), cols=len(canvas[0]))
 
         # There are three layers of objects on any given tile:
         # - exactly one architecture,
