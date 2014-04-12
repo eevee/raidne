@@ -7,9 +7,15 @@ returns (character, palette_entry).
 Also contains a list `PALETTE_ENTRIES`, containing the palette used by
 everything in the game.
 """
-from multimethod import strict_multimethod
+from functools import partial
+
+from multimethod import multimethod as _multimethod
 
 from raidne.game import things
+
+
+multimethod = partial(_multimethod, strict=True)
+
 
 PALETTE_ENTRIES = [
     # (name, other)
