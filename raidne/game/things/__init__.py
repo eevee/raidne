@@ -35,6 +35,15 @@ class Thing(object):
         if type.max_health:
             self.health = Meter(type.max_health)
 
+        self._component_data = {}
+
+    def __conform__(self, iface):
+        # z.i method called on an object to ask it to adapt itself to some
+        # interface
+        # TODO keyerror
+        component = self._type.components[iface]
+        return component(iface, self)
+
 
     def isa(self, thing_type):
         if isinstance(thing_type, type):
@@ -105,13 +114,13 @@ class Thing(object):
         return None
 
 
-class ThingType(object):
+class ThingType:
     """Contains behavior for a particular type of Thing."""
     solid = False
     max_health = 0
     name = "it"
 
-    def __init__(self, solid=False, max_health=None, name=None):
+    def __init__(self, *components, solid=False, max_health=None, name=None):
         if solid:
             self.solid = solid
         if max_health:
@@ -119,8 +128,22 @@ class ThingType(object):
         if name:
             self.name = name
 
+        self.components = {}
+        for component in components:
+            for iface in zi.implementedBy(component):
+                if iface is IComponent:
+                    continue
+                if iface in self.components:
+                    raise TypeError(
+                        "Got two components for the same interface "
+                        "({!r}): {!r} and {!r}"
+                        .format(iface, self.components[iface], component))
+                self.components[iface] = component
 
-        self.action_effects = {}
+    def __call__(self, *args, **kwargs):
+        return Thing(self, *args, **kwargs)
+
+
     # TODO doc me bro
 
 ### ARCHITECTURE
@@ -167,5 +190,42 @@ player = Creature(max_health=10, name="you")
 ### ITEMS
 class Item(ThingType): pass
 
-potion = Item(name="potion")
-potion.action_effects[action.UseItem] = effect.Heal()
+
+
+
+import zope.interface as zi
+
+
+class IComponent(zi.Interface):
+    pass
+
+
+@zi.implementer(IComponent)
+class Component:
+    def __init__(self, iface, entity):
+        self.iface = iface
+        self.entity = entity
+
+    def __getattr__(self, key):
+        # TODO keyerror?  or let it raise?
+        attr = self.iface[key]
+        if isinstance(attr, zi.interface.Method):
+            raise AttributeError("missing method??")
+        elif isinstance(attr, zi.Attribute):
+            return self.entity._component_data[attr]
+        else:
+            # TODO ???  can this happen.  also are there other Attributes
+            raise AttributeError("wat")
+
+
+class IUsable(IComponent):
+    def use():
+        pass
+
+
+@zi.implementer(IUsable)
+class UsablePotion(Component):
+    def use(self):
+        return effect.Heal()
+
+potion = Item(UsablePotion, name="potion")

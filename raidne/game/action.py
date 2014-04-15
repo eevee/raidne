@@ -119,7 +119,9 @@ class UseItem(Action):
         self.target = target
 
     def __call__(self, dungeon):
-        yield self.target._type.action_effects[UseItem], self.actor
+        # TODO circular import lol -- only because of the AI
+        from raidne.game.things import IUsable
+        yield IUsable(self.target).use(), self.actor
 
 class Throw(Action):
     def __init__(self, actor, obj, target):
