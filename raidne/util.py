@@ -15,7 +15,7 @@ class Size(namedtuple('Size', ('rows', 'cols'))):
 
     def iter_positions(self):
         """Iterates over every position within this area."""
-        for pair in itertools.product(xrange(self.rows), xrange(self.cols)):
+        for pair in itertools.product(range(self.rows), range(self.cols)):
             yield Position(*pair)
 
     def __contains__(self, position):

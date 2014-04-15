@@ -9,12 +9,7 @@ everything in the game.
 """
 from functools import partial
 
-from multimethod import multimethod as _multimethod
-
 from raidne.game import things
-
-
-multimethod = partial(_multimethod, strict=True)
 
 
 PALETTE_ENTRIES = [
@@ -39,6 +34,8 @@ PALETTE_ENTRIES = [
 ]
 
 
+# TODO most likely things should express what they look "like" and then this
+# should key off of that
 def rendering_for(thing):
     if thing.isa(things.Architecture):
         if thing.isa(things.floor):

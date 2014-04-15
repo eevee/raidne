@@ -13,6 +13,10 @@ class Fractor(object):
 
     This is the base class.  It doesn't do much of interest.
     """
+
+    height = 40
+    width = 120
+
     def __init__(self):
         # XXX get the player attributes, options, state, whatever else here
         pass
@@ -33,7 +37,7 @@ class RoomFractor(Fractor):
     def _scrap_canvas(self, height, width):
         # TODO flesh this out into a real class with abstract shape objects
         # like Room(), Hallway().  probably.  for now it's just a LoL
-        return [[None] * width for _ in xrange(height)]
+        return [[None] * width for _ in range(height)]
 
     def generate(self):
         canvas = self._scrap_canvas(height=80, width=30)
@@ -61,16 +65,16 @@ class RoomFractor(Fractor):
         assert 0 <= right < len(map[0])
 
         # Draw the top and bottom walls
-        for col in xrange(left, right + 1):
+        for col in range(left, right + 1):
             map[top][col] = things.Thing(type=things.wall)
             map[bottom][col] = things.Thing(type=things.wall)
 
         # Draw the left and right walls, and the space inside
-        for row in xrange(top + 1, bottom):
+        for row in range(top + 1, bottom):
             map[row][left] = things.Thing(type=things.wall)
             map[row][right] = things.Thing(type=things.wall)
 
-            for col in xrange(left + 1, right):
+            for col in range(left + 1, right):
                 map[row][col] = things.Thing(type=things.floor)
 
 
@@ -78,10 +82,6 @@ class BSPFractor(Fractor):
     """Use binary partitioning to generate a Rogue-like assortment of rooms and
     hallways.
     """
-
-
-    height = 40
-    width = 120
 
     def generate(self):
         canvas = WorldCanvas(width=self.width, height=self.height)
@@ -147,8 +147,8 @@ class Box(namedtuple('Box', ('x', 'y', 'width', 'height'))):
         """Iterate over every coordinate within this box."""
         import itertools
         return itertools.product(
-            xrange(self.x, self.x + self.width),
-            xrange(self.y, self.y + self.height))
+            range(self.x, self.x + self.width),
+            range(self.y, self.y + self.height))
 
 
 

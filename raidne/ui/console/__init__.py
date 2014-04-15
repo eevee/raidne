@@ -44,7 +44,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
         # TODO actually compute the offset more cleverly here  :)
         # TODO optimize me more??  somehow?
 
-        for screen_row in xrange(maxrow):
+        for screen_row in range(maxrow):
             viewport_chars = []
             attr_row = []
 
@@ -52,14 +52,14 @@ class PlayingFieldWidget(urwid.BoxWidget):
                 # Outside the bounds of the map; just show blank space
                 self._render_padding(maxcol, chars=viewport_chars, attrs=attr_row)
 
-                viewport.append(''.join(viewport_chars))
+                viewport.append(b''.join(viewport_chars))
                 attrs.append(attr_row)
                 continue
 
             # Blank space for the left padding
             self._render_padding(left, chars=viewport_chars, attrs=attr_row)
 
-            for col in xrange(map.size.cols):
+            for col in range(map.size.cols):
                 pos = Position(screen_row - top, col)
                 char, palette = rendering_for(map.tile(pos).topmost)
 
@@ -72,7 +72,7 @@ class PlayingFieldWidget(urwid.BoxWidget):
             self._render_padding((maxcol - map.size.cols - left),
                 chars=viewport_chars, attrs=attr_row)
 
-            viewport.append(''.join(viewport_chars))
+            viewport.append(b''.join(viewport_chars))
             attrs.append(attr_row)
 
         map_canv = urwid.TextCanvas(viewport, attr=attrs)
@@ -339,7 +339,7 @@ class RaidneInterface(object):
         self.loop.run()
 
         # End
-        print "Bye!"
+        print("Bye!")
 
 
 def main():
